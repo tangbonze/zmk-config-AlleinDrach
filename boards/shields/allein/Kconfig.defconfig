@@ -1,3 +1,13 @@
+
+# Central Side Configuration
+#
+# The side on which the PS/2 mouse is connected MUST be the central side.
+#
+# By default zmk configures the LEFT side as the central side. But most people
+# want to connect their pointing devices to the RIGHT side.
+#
+# So, you need to define that the central side is the one to which the
+# pointing device is connected to.
 if SHIELD_ALLEIN_RIGHT
 
 config ZMK_KEYBOARD_NAME
@@ -7,7 +17,7 @@ config ZMK_SPLIT_ROLE_CENTRAL
     default y
 
 endif
-
+# Options that should be enabled on both sides
 if SHIELD_ALLEIN_LEFT || SHIELD_ALLEIN_RIGHT
 
 config ZMK_SPLIT
