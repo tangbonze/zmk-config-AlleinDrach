@@ -32,7 +32,8 @@
   #include <behaviors/mouse_keys.dtsi>
 
   #include "include/mouse_tp.dtsi"
-
+  #define HAS_MOUSE_KEYS
+  #define HAS_MOUSE_TP
   #define U_TOG_TP_SET &mo MOUSE_TP_SET
 
  / {
