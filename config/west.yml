@@ -2,8 +2,8 @@ manifest:
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
-    - name: infused-kim
-      url-base: https://github.com/infused-kim
+    # - name: infused-kim
+    #   url-base: https://github.com/infused-kim
     - name: petejohanson
       url-base: https://github.com/petejohanson
     - name: urob
@@ -61,9 +61,9 @@ manifest:
     #
 
     # Module for PS/2 mouse & TP driver
-    - name: kb_zmk_ps2_mouse_trackpoint_driver
-      remote: infused-kim
-      revision: main
-
+    # - name: zmk_ps2_mouse_trackpoint_driver
+    #   remote: alleindrach
+    #   revision: allein.dev
+    #   path: kb_zmk_ps2_mouse_trackpoint_driver
   self:
     path: config
