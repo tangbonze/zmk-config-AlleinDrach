@@ -509,9 +509,9 @@
                     display-name = "TP";      
                     bindings = <
                        &trans  &trans  &trans  &trans     &trans          &trans     &trans     &trans  &trans  &trans  &trans  &trans
-                       &trans  &trans  &trans  &trans     &trans          &mmm     &trans     &trans  &trans  &trans  &trans  &trans
                        &trans  &trans  &trans  &trans     &trans          &trans     &trans     &trans  &trans  &trans  &trans  &trans
-                       &trans  &trans  &trans  &mkp MCLK          &mkp LCLK              &mkp RCLK      &mkp MCLK  &trans  &trans  &trans
+                       &trans  &trans  &trans  &trans     &trans          &trans     &trans     &trans  &trans  &trans  &trans  &trans
+                       &mmm  &trans  &trans  &mkp MCLK          &mkp LCLK              &mkp RCLK      &mkp MCLK  &trans  &trans  &trans
                 >;
                 };
 
