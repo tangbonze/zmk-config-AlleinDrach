@@ -549,7 +549,7 @@
         control_layer {
             display-name = "Control";
             bindings = <
-&kp GRAVE    &kp EXCL  &kp AT  &kp POUND  &kp DLLR        &kp PRCNT      &kp CARET  &kp AMPS   &kp ASTRK  &kp LPAR  &kp RPAR  &trans
+&kp GRAVE    &kp EXCL  &kp AT  &kp POUND  &kp DLLR        &kp PRCNT      &kp CARET  &kp AMPS   &kp ASTRK  &kp LPAR  &kp RPAR  &kp DELETE
 &bt_clr      &bt_1     &bt_2   &bt_3      &bt BT_CLR_ALL  &input_toggle  &trans     &kp MINUS  &kp EQUAL  &kp LBKT  &kp RBKT  &kp NON_US_BACKSLASH
 &trans       &trans    &trans  &trans     &trans          &trans         &trans     &kp UNDER  &kp PLUS   &kp LBRC  &kp RBRC  &trans
 &bootloader  &trans    &trans  &trans     &trans          &trans         &trans     &trans     &trans     &trans
