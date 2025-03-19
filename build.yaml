@@ -20,6 +20,5 @@
 include:
   - board: nice_nano_v2
     shield: alleindrach
-    snippet: studio-rpc-usb-uart
   - board: nice_nano_v2
     shield: settings_reset
