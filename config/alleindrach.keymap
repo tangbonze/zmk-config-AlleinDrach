@@ -54,151 +54,10 @@
 #include <dt-bindings/zmk/bt.h>
 #include <dt-bindings/zmk/keys.h>
 #include <dt-bindings/zmk/pointing.h>
-#include <dt-bindings/zmk/rgb.h>
 
 #define U_TOG_TP_SET &mo MOUSE_TP_SET
 
 / {
-    macros {
-        input_toggle: input_toggle {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings =
-                <&macro_press>,
-                <&kp LEFT_CONTROL>,
-                <&macro_tap>,
-                <&kp SPACE>,
-                <&macro_release>,
-                <&kp LEFT_CONTROL>;
-        };
-
-        bt_1: bt_sel_1 {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&bt BT_SEL 0>;
-        };
-
-        bt_2: bt_sel_2 {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&bt BT_SEL 1>;
-        };
-
-        bt_3: bt_sel_3 {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&bt BT_SEL 2>;
-        };
-
-        bt_loop: bt_loop {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&bt BT_NXT>;
-        };
-
-        bt_clr: bt_clr {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&bt BT_CLR>;
-        };
-
-        bt_clr_all: bt_clr_all {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&bt BT_CLR_ALL>;
-        };
-
-        ug_toggle: ug_toggle {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&rgb_ug RGB_TOG>;
-        };
-
-        indicator_toggle: indicator_toggle {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&rgb_ind RGB_IND_TOGGLE>;
-        };
-
-        mo_num: mo_num {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&mo NUM_LAYER>;
-        };
-
-        to_num: to_num {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&to NUM_LAYER>;
-        };
-
-        to_default: to_default {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&to DEFAULT_LAYER>;
-        };
-
-        key_D: key_D {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp D>;
-        };
-
-        key_F: key_F {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp F>;
-        };
-
-        key_A: key_A {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp A>;
-        };
-
-        key_S: key_S {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp S>;
-        };
-
-        key_Z: key_Z {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp Z>;
-        };
-
-        key_X: key_X {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp X>;
-        };
-
-        key_C: key_C {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp C>;
-        };
-
-        key_V: key_V {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp V>;
-        };
-
-        key_B: key_B {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp B>;
-        };
-
-        key_N: key_N {
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&kp N>;
-        };
-    };
-
     behaviors {
         ht: hold_tap {
             compatible = "zmk,behavior-hold-tap";
@@ -567,10 +426,10 @@
         control_layer {
             display-name = "Control";
             bindings = <
-&kp GRAVE    &kp EXCL  &kp AT  &kp POUND  &kp DLLR        &kp PRCNT      &kp CARET  &kp AMPS   &kp ASTRK  &kp LPAR  &kp RPAR  &kp DELETE
-&bt_clr      &bt_1     &bt_2   &bt_3      &bt BT_CLR_ALL  &input_toggle  &trans     &kp MINUS  &kp EQUAL  &kp LBKT  &kp RBKT  &kp NON_US_BACKSLASH
-&trans       &trans    &trans  &trans     &trans          &trans         &trans     &kp UNDER  &kp PLUS   &kp LBRC  &kp RBRC  &trans
-&bootloader  &trans    &trans  &trans     &trans          &trans         &trans     &trans     &trans     &trans
+&kp GRAVE    &kp EXCL      &kp AT        &kp POUND     &kp DLLR        &kp PRCNT  &kp CARET  &kp AMPS   &kp ASTRK  &kp LPAR  &kp RPAR  &kp DELETE
+&bt BT_CLR   &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2  &bt BT_CLR_ALL  &trans     &trans     &kp MINUS  &kp EQUAL  &kp LBKT  &kp RBKT  &kp NON_US_BACKSLASH
+&trans       &trans        &trans        &trans        &trans          &trans     &trans     &kp UNDER  &kp PLUS   &kp LBRC  &kp RBRC  &trans
+&bootloader  &trans        &trans        &trans        &trans          &trans     &trans     &trans     &trans     &trans
             >;
         };
 
