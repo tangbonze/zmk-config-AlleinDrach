@@ -21,7 +21,8 @@ lives on the `studio` branch.
 | RGB 状态指示灯（Caps/Num、BLE、图层） | ✅ 从 fork 移植回本仓库 |
 | 滚动模式（原 `&mmm`） | ✅ 用主线 `zmk,input-listener` 的按层重映射实现，按住 TP 层的键再推指点杆即可滚动（见下） |
 | USB 日志 | ❌ 已关闭（USB 只暴露一个串口，见「注意事项」） |
-| TP Set 层（指点杆运行时调参） | ✅ 保留；修正了上游「最高速度加档」被写成减档的问题（见「TP Set 层」） |
+| TP Set 层（指点杆运行时调参） | ✅ 保留，入口是 TP 层第 1 排第 1 键的 `&mo MOUSE_TP_SET`；修正了上游「最高速度加档」被写成减档的问题（见「TP Set 层」） |
+| 自定义 `macros` / hold-tap | ❌ 已整体移除 —— 在线 Keymap Editor 不认 `macros`，引用它们的那 15 个 hold-tap 也已零引用（见「与在线 Keymap Editor 共存」） |
 
 ### 为什么不是 DYA Studio
 
@@ -121,11 +122,15 @@ Kconfig 开关仍在 `boards/shields/alleindrach/Kconfig.defconfig` 里（fork �
    ```
 
 键位表里新增 `Scroll_layer`（全是 `&trans`，纯粹当开关用），并把原来 `&mmm` 的两个位置
-改成 `&mo SCROLL`：**TP 层第 1 排第 7 键**（`Y` 的位置）和**底排第 1 键**。
+改成 `&mo SCROLL`：**TP 层第 2 排第 7 键**和**底排第 1 键**（原来第 1 排第 7 键那个位置
+现在让给了 TP Set 入口）。
+
+TP 层第 1 排第 1 键是 `&mo MOUSE_TP_SET`，即 **TP Set 层（层 4）的入口**。
 
 > ⚠️ `Scroll_layer` **必须留在 keymap 的最后**。ZMK 的层索引就是节点出现顺序，
-> 把它插到中间会把 `MOUSE_TP_SET`（4）挤到 5，而 `U_TOG_TP_SET` 还写着 4 ——
-> 结果就是「按 TP Set 键进了滚动层」。这也是为什么它排在 `MouseSettings_layer` 之后。
+> 把它插到中间会把 `MOUSE_TP_SET`（4）挤到 5，而 TP Set 入口在生成 DT 里是写死的
+> `&mo 4` —— 结果就是「按 TP Set 键进了滚动层」。这也是为什么它排在
+> `MouseSettings_layer` 之后。动层顺序前先全局搜一遍 `&mo 4`（`&mo SCROLL` 走宏名，安全）。
 
 **用法：按住这两个键之一，再推动指点杆就是滚动。**
 TP 层只在指点杆移动时才激活（150ms 超时），所以想不碰指点杆就先按住的话，
@@ -158,18 +163,42 @@ TP 层只在指点杆移动时才激活（150ms 超时），所以想不碰指�
 想永久固定就把值写进 `config/include/mouse_tp.dtsi` 的 `&mouse_ps2 { ... }`
 （`MS_RESET` 之后生效的正是那里硬编码的值）。
 
-三个遗留问题：
+入口：TP 层（层 3）第 1 排第 1 键是 `&mo MOUSE_TP_SET`，生成 DT 里是 `&mo 0x4`。
+`U_TOG_TP_SET` 和 `mo_ctrl_or_tp` 两个 define / behavior 仍然只定义、无人引用，是死代码。
+
+几个注意点：
 
 * 上游把「最高速度」的加档键写成了减档（两个都是 `U_MSS_TP_V6_D`），本分支已修成
   `U_MSS_TP_V6_I` —— 生成 DT 里现在是 `&mms 0xf &mms 0xe`（15 = VALUE6_DECR，14 = INCR）。
-* `U_TOG_TP_SET` 和 `mo_ctrl_or_tp`（`&mo 0x2` / `&mo 0x4` 的 morph）在这个 keymap 里
-  **只定义、没有任何层引用**，所以层 4 目前没有入口 —— 想用就自己接一个键
-  （上游原版是挂在 Control 层上），或者在 ZMK Studio 里改。
 * `U_MSS_LOG` 走 `LOG_INF`，而日志已经关掉（见「注意事项」），所以它现在按了没反应。
+* 自定义 `macros { }` 和 15 个 hold-tap 已整体移除，原因见下一节。
 
 > 读这层**别按源码换行**：config 里这份被重排成 15/15/16，而物理排布是 12/12/12/10。
 > 换行是假象，**扁平顺序**才是真的（总数仍是 46，和原版 `boards/shields/alleindrach/
 > alleindrach.keymap` 里那份用框线对齐的逐项一致）。
+
+### 与在线 Keymap Editor 共存（为什么 `macros` 和 hold-tap 没了）
+
+`config/alleindrach.keymap` 会被在线 Keymap Editor 直接改写并提交（作者是
+`keymap-editor[bot]`，commit message 一律是 `Updated alleindrach.keymap`）。
+它只认 **layers 和 hold-taps**，**不认 `macros`** —— 所以每次保存都会把整个
+`macros { }` 节点删掉，同时顺手规范化 include 列表、把 `LALT` 写成 `LEFT_ALT` 之类。
+
+本分支当前的处理：
+
+* `macros { }`（21 个宏）已被编辑器删除，不再恢复；
+* 引用这些宏的 15 个自定义 hold-tap（`ht` / `hht` / `hht_num` / `hht_input` /
+  `ht_default` / `ht_bt1..3` / `ht_bt_loop` / `ht_bt_clr{,_all}` / `ht_ug_tog` /
+  `ht_ind_tog` / `ht_boot` / `ht_reset`）也一并删掉了 —— 它们原本只被 Control 层用，
+  而那一层早就换成了原生 `&bt BT_SEL n` / `&bt BT_CLR` / `&bt BT_CLR_ALL`，
+  删之前已确认零引用；
+* 剩下的 `mod-morph` / `tap-dance`（28 个，`mo_ctrl_or_tp`、`semi_bracket`、
+  `mod_rgui_*`、`td_*` …）同样零引用，暂时保留，需要时也可以一起清掉。
+
+> 教训：**别把 `macros { }` 放在被在线编辑器接管的 keymap 文件里。** 想保留宏就把它挪进
+> `config/include/*.dtsi` 再 `#include`（编辑器会保留 include 行）。
+> 另外在编辑器里按保存之前先刷新页面：本地改过 `config/alleindrach.keymap` 之后，
+> 编辑器里那份过期的模型一保存就会把你的改动覆盖回去。
 
 ### 构建
 
@@ -220,9 +249,11 @@ make clean        # 删掉 build/
 * 自动鼠标图层（指点杆一动就激活 `MOUSE_TP` 层）是保留的，但**已改由主线 listener 实现**：
   模块自带的 `zmk,input-listener-ps2` 被 `status = "disabled"`，等价效果来自
   `zip_temp_layer MOUSE_TP 150`（见「滚动模式」一节）。
-* TP Set 层（层 4）的调参键位、以及它当前没有入口这件事，见「TP Set 层」一节。
-* 固件占用：FLASH 246,876 B / 792 KB（30.4%），RAM 77,298 B / 256 KB（29.5%）；
-  `settings_reset` 固件 FLASH 46,188 B。（开着 USB 日志时是 37.5% / 33.6%。）
+* TP Set 层（层 4）的调参键位见「TP Set 层」一节；它的入口是 TP 层第 1 排第 1 键的
+  `&mo MOUSE_TP_SET`。
+* 固件占用：FLASH 242,024 B / 792 KB（29.8%），RAM 73,570 B / 256 KB（28.1%）；
+  `settings_reset` 固件 FLASH 46,188 B。（清掉 hold-tap 之前是 30.4% / 29.5%；
+  开着 USB 日志时是 37.5% / 33.6%。）
 
 ---
 
@@ -238,6 +269,8 @@ make clean        # 删掉 build/
 | RGB status indicators (Caps/Num, BLE, layer) | ✅ ported back into this repo |
 | Scroll mode (former `&mmm`) | ✅ rebuilt on mainline `zmk,input-listener` per-layer overrides — hold a TP-layer key and move the stick (see below) |
 | USB logging | ❌ off (USB exposes a single serial port — see caveats) |
+| TP Set layer (runtime TrackPoint tuning) | ✅ kept; entered with `&mo MOUSE_TP_SET` on the first key of the TP layer's top row. Fixes upstream's "upper plateau speed" increase key (see "The TP Set layer") |
+| Custom `macros` / hold-taps | ❌ removed — the online Keymap Editor does not understand `macros`, and the 15 hold-taps that referenced them had zero references left (see "Living with the online Keymap Editor") |
 
 ### Why not DYA Studio
 
@@ -343,13 +376,18 @@ How it works (all in `config/include/mouse_tp.dtsi`):
    ```
 
 The keymap gains a `Scroll_layer` (all `&trans`; it is just a switch) and the two
-positions that used `&mmm` now hold `&mo SCROLL`: **7th key of the TP layer's top row**
-(the `Y` spot) and **first key of its bottom row**.
+positions that used `&mmm` now hold `&mo SCROLL`: **7th key of the TP layer's second row**
+and **first key of its bottom row** (the top row's 7th key went to the TP-settings entry
+instead).
+
+The first key of the TP layer's top row is `&mo MOUSE_TP_SET` — the **entry to the TP Set
+layer (layer 4)**.
 
 > ⚠️ `Scroll_layer` **must stay last** in the keymap. ZMK derives layer indices from
-> node order, so inserting it earlier would push `MOUSE_TP_SET` (4) to 5 while
-> `U_TOG_TP_SET` still says 4 — i.e. the TP-settings key would land on the scroll layer.
-> That is why it sits after `MouseSettings_layer`.
+> node order, so inserting it earlier would push `MOUSE_TP_SET` (4) to 5 while the entry
+> is a hard-coded `&mo 4` in the generated DT — i.e. the TP-settings key would land on the
+> scroll layer. That is why it sits after `MouseSettings_layer`. Search for `&mo 4` before
+> reordering layers (`&mo SCROLL` goes through the macro name and is safe).
 
 Usage: **hold either of those keys and move the TrackPoint to scroll.** The TP layer is
 only up while the stick moves (150ms timeout), so if you would rather not touch the
@@ -385,22 +423,50 @@ so cutting power inside that window loses the change. To pin values down instead
 put them in `&mouse_ps2 { ... }` in `config/include/mouse_tp.dtsi` — that is what
 takes effect after `MS_RESET`.
 
-Three leftovers:
+Entry point: the first key of the TP layer's top row is `&mo MOUSE_TP_SET` (`&mo 0x4` in
+the generated DT). `U_TOG_TP_SET` and `mo_ctrl_or_tp` are still defined but referenced by
+nobody — dead code.
+
+Points to watch:
 
 * Upstream wrote the "upper plateau speed" increase key as a decrease (both were
   `U_MSS_TP_V6_D`). This branch fixes it to `U_MSS_TP_V6_I`, so the generated DT now
   reads `&mms 0xf &mms 0xe` (15 = VALUE6_DECR, 14 = INCR).
-* `U_TOG_TP_SET` and `mo_ctrl_or_tp` (the `&mo 0x2` / `&mo 0x4` morph) are **defined
-  but referenced by no layer** in this keymap, so layer 4 currently has no entry
-  point — bind a key to `&mo MOUSE_TP_SET` yourself (upstream had it on the Control
-  layer) or change it from ZMK Studio.
 * `U_MSS_LOG` goes through `LOG_INF` and USB logging is off (see caveats), so it does
   nothing at the moment.
+* The custom `macros { }` node and all 15 hold-taps have been removed — see the next
+  section.
 
 > Do not read this layer by its source line breaks: the copy in `config/` was
 > reflowed into 15/15/16 while the physical rows are 12/12/12/10. The line breaks are
 > cosmetic; the **flat order** is what matters (still 46 entries, identical to the
 > frame-drawn version in `boards/shields/alleindrach/alleindrach.keymap`).
+
+### Living with the online Keymap Editor (why `macros` and the hold-taps are gone)
+
+`config/alleindrach.keymap` gets rewritten and committed directly by the online Keymap
+Editor (author `keymap-editor[bot]`, commit message always `Updated alleindrach.keymap`).
+It understands **layers and hold-taps only** — it does **not** understand `macros`, so
+every save drops the whole `macros { }` node, while also normalising the include list and
+spelling `LALT` as `LEFT_ALT`.
+
+What this branch does about it:
+
+* the `macros { }` node (21 macros) was deleted by the editor and is not coming back;
+* the 15 custom hold-taps that referenced those macros (`ht`, `hht`, `hht_num`,
+  `hht_input`, `ht_default`, `ht_bt1..3`, `ht_bt_loop`, `ht_bt_clr{,_all}`, `ht_ug_tog`,
+  `ht_ind_tog`, `ht_boot`, `ht_reset`) were removed too — the Control layer that used them
+  already switched to native `&bt BT_SEL n` / `&bt BT_CLR` / `&bt BT_CLR_ALL`, so they had
+  zero references left;
+* the remaining `mod-morph` / `tap-dance` behaviours (28 of them: `mo_ctrl_or_tp`,
+  `semi_bracket`, `mod_rgui_*`, `td_*`, …) are equally unreferenced and were kept for now;
+  they can go the same way if you want.
+
+> Lesson: **keep `macros { }` out of a keymap file the online editor owns.** If you need
+> the macros, move them into `config/include/*.dtsi` and `#include` that (the editor keeps
+> include lines). Also refresh the editor page before hitting save — after you change
+> `config/alleindrach.keymap` locally, the editor's stale model will write its own copy
+> back over yours.
 
 ### Building
 
@@ -455,8 +521,8 @@ The layout preview comes from
   but it is now driven by **mainline's listener**: the module's own
   `zmk,input-listener-ps2` is `status = "disabled"` and `zip_temp_layer MOUSE_TP 150`
   does the equivalent job (see the scroll section).
-* The TP Set layer (layer 4) — which keys tune what, and the fact that nothing enters
-  it right now — is documented in "The TP Set layer" above.
-* Firmware size: FLASH 246,876 B / 792 KB (30.4%), RAM 77,298 B / 256 KB (29.5%);
-  the `settings_reset` build is FLASH 46,188 B. (With USB logging on it was
-  37.5% / 33.6%.)
+* The TP Set layer (layer 4) — which keys tune what — is documented in "The TP Set layer"
+  above; it is entered with `&mo MOUSE_TP_SET` on the first key of the TP layer's top row.
+* Firmware size: FLASH 242,024 B / 792 KB (29.8%), RAM 73,570 B / 256 KB (28.1%);
+  the `settings_reset` build is FLASH 46,188 B. (Before the hold-taps were dropped it was
+  30.4% / 29.5%; with USB logging on, 37.5% / 33.6%.)
