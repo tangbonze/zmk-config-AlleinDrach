@@ -406,10 +406,10 @@
         default_layer {
             display-name = "Base";
             bindings = <
-&kp ESC    &kp Q     &kp W     &kp E      &kp R        &kp T        &kp Y     &kp U     &kp I      &kp O      &kp P      &kp BACKSPACE
-&kp LCTRL  &kp A     &kp S     &kp D      &kp F        &kp G        &kp H     &kp J     &kp K      &kp L      &kp SEMI   &kp SQT
-&kp LSHFT  &kp Z     &kp X     &kp C      &kp V        &kp B        &kp N     &kp M     &kp COMMA  &kp DOT    &kp SLASH  &kp RSHFT
-&kp LCTRL  &kp LWIN  &kp LALT  &lt 3 TAB  &lt 1 SPACE  &lt 2 ENTER  &kp LEFT  &kp DOWN  &kp UP     &kp RIGHT
+&kp ESC    &kp Q         &kp W         &kp E      &kp R        &kp T        &kp Y     &kp U     &kp I      &kp O      &kp P      &kp BACKSPACE
+&kp LCTRL  &kp A         &kp S         &kp D      &kp F        &kp G        &kp H     &kp J     &kp K      &kp L      &kp SEMI   &kp SQT
+&kp LSHFT  &kp Z         &kp X         &kp C      &kp V        &kp B        &kp N     &kp M     &kp COMMA  &kp DOT    &kp SLASH  &kp RSHFT
+&kp LCTRL  &kp LEFT_ALT  &kp LEFT_WIN  &lt 3 TAB  &lt 1 SPACE  &lt 2 ENTER  &kp LEFT  &kp DOWN  &kp UP     &kp RIGHT
             >;
         };
 
@@ -446,7 +446,7 @@
         MouseTP_layer {
             display-name = "TP";
             bindings = <
-&trans      &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
+&mo 4       &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
 &trans      &trans  &trans  &trans     &trans     &trans     &mo 5      &trans  &trans  &trans  &trans  &trans
 &trans      &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
 &mo SCROLL  &trans  &trans  &mkp MCLK  &mkp LCLK  &mkp RCLK  &mkp MCLK  &trans  &trans  &trans
