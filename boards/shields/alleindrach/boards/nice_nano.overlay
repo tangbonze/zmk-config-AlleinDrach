@@ -46,18 +46,23 @@
 };
 
 /*
- * Console / logging transport
+ * Console / logging transport -- CURRENTLY DISABLED
+ * (see the "Logging" section of config/alleindrach.conf)
  *
  * This shield hands `uart0` to the PS/2 trackpoint driver (see
  * config/include/mouse_tp.dtsi), so the board has no serial port left to serve
  * as `zephyr,console`. ZMK's `CONFIG_ZMK_USB_LOGGING` selects `USB_UART_CONSOLE`
  * and therefore *requires* a console node; upstream ZMK normally supplies it
- * via the `zmk-usb-logging` snippet, but ZMK's build action only accepts one
- * `snippet:` per build entry and that slot holds `studio-rpc-usb-uart`.
+ * via the `zmk-usb-logging` snippet, which is not usable here because ZMK's
+ * build action accepts only one `snippet:` per build entry and this shield
+ * needs `studio-rpc-usb-uart` for ZMK Studio.
  *
- * Declaring the CDC-ACM console inline, mirroring the upstream
- * `zmk-usb-logging` snippet and the original zmk-ps2 fork's board dtsi.
+ * USB logging is off right now, so the keyboard exposes a single CDC-ACM port
+ * (the ZMK Studio RPC one, declared by the snippet). Re-enabling logging
+ * requires uncommenting `CONFIG_ZMK_USB_LOGGING=y` in config/alleindrach.conf
+ * *and* this block.
  */
+/*
 / {
     chosen {
         zephyr,console = &cdc_acm_uart;
@@ -70,3 +75,4 @@
         compatible = "zephyr,cdc-acm-uart";
     };
 };
+*/

@@ -20,7 +20,7 @@ lives on the `studio` branch.
 | 物理布局（Studio 预览必需） | ✅ 由 `config/info.json` 生成，46 键 |
 | RGB 状态指示灯（Caps/Num、BLE、图层） | ✅ 从 fork 移植回本仓库 |
 | `&mmm` 鼠标「移动/滚动」模式切换 | ❌ 未移植（见下） |
-| USB 日志 | ✅ 保留（会多出一个串口，见"注意事项"） |
+| USB 日志 | ❌ 已关闭（USB 只暴露一个串口，见「注意事项」） |
 
 ### 为什么不是 DYA Studio
 
@@ -131,18 +131,24 @@ make clean        # 删掉 build/
 
 ### 注意事项
 
-* **会看到两个串口。** 本 shield 把 `uart0` 让给了 PS/2 驱动，而
-  `CONFIG_ZMK_USB_LOGGING=y` 会 `select USB_UART_CONSOLE`，所以 console 被放到
-  一个 USB CDC-ACM 上（见 `boards/nice_nano_v2.overlay`）。另一个 CDC-ACM 是
-  ZMK Studio 的 RPC。**在 ZMK Studio 里要选 Studio 那个口。**
-  不想要日志（也就只剩一个口）：注释掉 `config/alleindrach.conf` 里的
-  `CONFIG_ZMK_USB_LOGGING=y` 即可。
+* **USB 上只有一个串口。** 本 shield 把 `uart0` 让给了 PS/2 驱动
+  （`config/include/mouse_tp.dtsi`），而 stock ZMK 的 nice_nano 根本没有
+  `zephyr,console`；`CONFIG_ZMK_USB_LOGGING=y` 会 `select USB_UART_CONSOLE`、
+  因此**必须**有个 console 节点，唯一的正规来源是上游 `zmk-usb-logging`
+  snippet —— 但它用不了：ZMK 的 build action 每条只接受一个 `snippet:`，那个
+  位置被 `studio-rpc-usb-uart` 占了。所以这里把日志关掉了，插上 USB 只会出现
+  ZMK Studio 那一个 CDC-ACM 口，在 ZMK Studio 里直接选它。
+  要把日志开回来（会多出第二个口，调指点杆时有用）：**同时**取消注释
+  `config/alleindrach.conf` 里的 `CONFIG_ZMK_USB_LOGGING=y`，以及
+  `boards/shields/alleindrach/boards/nice_nano_v2.overlay` 末尾那段
+  “Console / logging transport”。
 * `ws2812@1` 的 unit-address 警告是原仓库就有的（`reg = <0>` 与 `@1` 不一致），
   不影响功能，本次未改动。
 * 自动鼠标图层（指点杆一动就激活 `MOUSE_TP` 层）是保留的 —— 因为
   `input_listener_ps2.c` 被完整编进固件，`config/include/mouse_tp.dtsi` 里的
   `layer-toggle` / `layer-toggle-delay-ms` / `layer-toggle-timeout-ms` 照旧生效。
-* 固件占用：FLASH 304,492 B / 792 KB（37.5%），RAM 88,170 B / 256 KB（33.6%）。
+* 固件占用（关闭日志后）：FLASH 247,364 B / 792 KB（30.5%），RAM 76,194 B /
+  256 KB（29.1%）；`settings_reset` 固件 FLASH 46,188 B。（开日志时是 37.5% / 33.6%。）
 
 ---
 
@@ -276,16 +282,24 @@ The layout preview comes from
 
 ### Caveats
 
-* **You will see two serial ports.** This shield hands `uart0` to the PS/2
-  driver, and `CONFIG_ZMK_USB_LOGGING=y` does `select USB_UART_CONSOLE`, so the
-  console moves to a USB CDC-ACM (see `boards/nice_nano_v2.overlay`). The other
-  CDC-ACM is ZMK Studio's RPC. **Pick the Studio one in ZMK Studio.**
-  Don't want logs (and only one port)? Comment out `CONFIG_ZMK_USB_LOGGING=y` in
-  `config/alleindrach.conf`.
+* **Only one serial port on USB.** This shield hands `uart0` to the PS/2 driver
+  (`config/include/mouse_tp.dtsi`), and stock ZMK's nice_nano declares no
+  `zephyr,console` at all; `CONFIG_ZMK_USB_LOGGING=y` does `select USB_UART_CONSOLE`
+  and therefore *requires* a console node. The only supported source is upstream's
+  `zmk-usb-logging` snippet, which cannot be used here: ZMK's build action accepts
+  only one `snippet:` per build entry, and that slot holds `studio-rpc-usb-uart`.
+  USB logging is therefore off, and plugging in USB exposes a single CDC-ACM port
+  (the ZMK Studio RPC one) — just pick it in ZMK Studio.
+  To get logging back (a second port, handy when debugging the trackpoint):
+  uncomment `CONFIG_ZMK_USB_LOGGING=y` in `config/alleindrach.conf` *and* the
+  "Console / logging transport" block at the end of
+  `boards/shields/alleindrach/boards/nice_nano_v2.overlay`.
 * The `ws2812@1` unit-address warning is pre-existing (`reg = <0>` vs `@1`); it is
   harmless and was left alone.
 * Automatic mouse layer (TrackPoint movement activates the `MOUSE_TP` layer) is
   preserved: `input_listener_ps2.c` is compiled into the firmware in full, so the
   `layer-toggle` / `layer-toggle-delay-ms` / `layer-toggle-timeout-ms` settings in
   `config/include/mouse_tp.dtsi` still apply.
-* Firmware size: FLASH 304,492 B / 792 KB (37.5%), RAM 88,170 B / 256 KB (33.6%).
+* Firmware size (USB logging off): FLASH 247,364 B / 792 KB (30.5%), RAM
+  76,194 B / 256 KB (29.1%); the `settings_reset` build is FLASH 46,188 B.
+  (With logging on it was 37.5% / 33.6%.)
