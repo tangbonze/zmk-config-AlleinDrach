@@ -261,6 +261,20 @@ make clean        # 删掉 build/
 
 依赖会下载到 `./dependencies/`（已在 `.gitignore` 里）。
 
+#### 远端 CI
+
+`.github/workflows/build.yml` 调用的 reusable workflow **钉在 `@v0.3.0`**，和
+`config/west-dependency.yml` 里的 ZMK 版本对齐，而不是 `@main`：
+
+> `@main` 版本在构建**之后**多了一步 "Check if building a board without explicit
+> ZMK compat"。它执行 `west boards ... --format "{qualifiers}"`，而 `west boards` 是
+> Zephyr 自带的 west 扩展 —— ZMK v0.3.0 钉的 Zephyr v3.5.0 不认识 `{qualifiers}`
+> 字段，直接 `KeyError: 'qualifiers'`；该步骤跑在 `sh -e` 下，于是**构建成功但 job
+> 失败**。检查的第一步又要 `CONFIG_ZMK_BOARD_COMPAT=y`，而 v0.3.0 根本没这个
+> Kconfig 符号，所以也没法从 `.conf` 里满足它。
+>
+> 等 ZMK 升到基于 Zephyr 4.1 的版本后，再把这一行换回 `@main`。
+
 ### 烧录
 
 | 产物 | 用途 |
@@ -581,6 +595,23 @@ make clean        # remove build/
 ```
 
 Dependencies are downloaded into `./dependencies/` (git-ignored).
+
+#### Continuous integration
+
+`.github/workflows/build.yml` calls the reusable workflow at **`@v0.3.0`** — the
+ZMK release this branch builds against (see `config/west-dependency.yml`) — not
+`@main`:
+
+> `@main` adds a post-build step, "Check if building a board without explicit ZMK
+> compat", which runs `west boards ... --format "{qualifiers}"`. `west boards` is
+> Zephyr's own west extension, and Zephyr v3.5.0 (what ZMK v0.3.0 pins) does not
+> know the `{qualifiers}` field — it dies with `KeyError: 'qualifiers'`. The step
+> runs under `sh -e`, so the job fails *after* a perfectly good build. Its first
+> test wants `CONFIG_ZMK_BOARD_COMPAT=y`, and ZMK v0.3.0 has no such Kconfig
+> symbol, so a `.conf` file cannot satisfy it either.
+>
+> Switch this back to `@main` once ZMK itself is upgraded to a Zephyr 4.1-based
+> revision.
 
 ### Flashing
 

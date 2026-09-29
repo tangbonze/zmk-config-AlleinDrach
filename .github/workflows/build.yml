@@ -1,5 +1,33 @@
+name: Build ZMK firmware
+
 on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
-    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
+    # Pinned to the ZMK release this branch builds against (see
+    # `config/west-dependency.yml`), *not* to `@main`.
+    #
+    # `@main` carries a post-build step named "Check if building a board without
+    # explicit ZMK compat". It shells out to
+    #
+    #     west boards ... --board nice_nano_v2 --format "{qualifiers}"
+    #
+    # but `west boards` is Zephyr's own west extension, and Zephyr v3.5.0 --
+    # still what ZMK v0.3.0 pins -- does not know the `{qualifiers}` field:
+    #
+    #     File ".../zephyr/scripts/west_commands/boards.py", line 87
+    #     KeyError: 'qualifiers'
+    #
+    # That step runs under `sh -e`, so the KeyError fails the job *after* a
+    # perfectly good build. The check first looks for `CONFIG_ZMK_BOARD_COMPAT=y`
+    # and ZMK v0.3.0 has no such symbol, so it cannot be satisfied from a .conf
+    # file either.
+    #
+    # The v0.3.0 workflow is the one that matches this ZMK revision and does not
+    # contain that step; everything else about it (west init/update, the
+    # `studio-rpc-usb-uart` snippet, `-DZMK_EXTRA_MODULES`, the artifact jobs,
+    # checkout@v4 / cache@v4 / upload-artifact@v4) is equivalent to main.
+    #
+    # Move this back to `@main` only when ZMK itself is upgraded to a
+    # Zephyr 4.1-based revision.
+    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@v0.3.0
