@@ -29,6 +29,15 @@
 
 #define SCROLL 5
 
+// Precision ("snipe") layer. Holding `&mo SNIPE` makes the TrackPoint listener
+// scale stick movement down to 1/4 speed for fine positioning -- see the
+// `snipe` override in `include/mouse_tp.dtsi`.
+//
+// Appended AFTER `SCROLL` on purpose: layer indices are node order, so adding
+// it at the end leaves 0..5 untouched.
+
+#define SNIPE 6
+
 /*
  * Defines to enable/disable features
  *
@@ -326,7 +335,7 @@
         MouseTP_layer {
             display-name = "TP";
             bindings = <
-&mo 4       &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
+&mo 4       &trans  &trans  &trans     &trans     &trans     &mo SNIPE  &trans  &trans  &trans  &trans  &trans
 &trans      &trans  &trans  &trans     &trans     &trans     &mo 5      &trans  &trans  &trans  &trans  &trans
 &trans      &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
 &mo SCROLL  &trans  &trans  &mkp MCLK  &mkp LCLK  &mkp RCLK  &mkp MCLK  &trans  &trans  &trans
@@ -349,15 +358,31 @@
             >;
         };
 
-        // MUST stay last: `SCROLL` is `#define`d to this layer's index (5), and
-        // inserting a layer before it would shift `MOUSE_TP_SET` (4) out from
-        // under `U_TOG_TP_SET`.
+        // MUST stay after `MouseSettings_layer`: `SCROLL` and `SNIPE` are
+        // `#define`d to indices 5 and 6, and inserting a layer before the TP Set
+        // layer would shift `MOUSE_TP_SET` (4) out from under its entry key.
         //
         // Held down by `&mo SCROLL` on the TP layer. Every key stays transparent,
         // so this layer only exists to flip the TrackPoint into scroll mode.
 
         Scroll_layer {
             display-name = "Scroll";
+            bindings = <
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+            >;
+        };
+
+        // Precision layer. Held down by `&mo SNIPE` on the TP layer (the key that
+        // sits on the base layer's `Y` position). Every key stays transparent --
+        // the layer carries no bindings of its own, it only tells the TrackPoint
+        // listener to slow the stick down to 1/4 speed. See the `snipe` override
+        // in `include/mouse_tp.dtsi`.
+
+        Snipe_layer {
+            display-name = "Snipe";
             bindings = <
 &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans

@@ -92,7 +92,11 @@
     * Everything the module listener did is reproduced with processors:
     *   layer-toggle             -> `zip_temp_layer`   (layer, timeout-ms)
     *   y-invert                 -> `zip_xy_transform` (INPUT_TRANSFORM_Y_INVERT)
-    *   scale-multiplier/divisor -> `zip_xy_scaler`    (mul, div)  [unused: 1/1]
+    *   scale-multiplier/divisor -> `zip_xy_scaler`    (mul, div)  [used by snipe: 1/4]
+    *
+    * On top of the base chain there are two per-layer overrides further down:
+    *   `scroll` (`&mo SCROLL`)  converts stick travel into wheel notches
+    *   `snipe`  (`&mo SNIPE`)   quarters the pointer speed for fine positioning
     *
     * Difference: the module's `layer-toggle-delay-ms` (how long the stick had to
     * move before the layer activated) has no equivalent -- the layer now turns on
@@ -132,18 +136,53 @@
           process-next;
 
           input-processors =
+              // Horizontal scrolling is OFF. The listener only understands
+              // INPUT_REL_X / _Y / _WHEEL / _HWHEEL, and the code-mapper below
+              // cannot drop a code -- it only renames the ones it lists. So the
+              // sideways axis is zeroed here instead, *before* the mapper:
+              // `zip_x_scaler 0 1` multiplies X by 0. That way sideways stick
+              // travel produces neither HWHEEL nor a leftover INPUT_REL_X that
+              // the base processors (which run afterwards) would feed to the
+              // pointer as cursor movement.
+              <&zip_x_scaler 0 1>,
+
               // INPUT_REL_Y -> INPUT_REL_WHEEL, INPUT_REL_X -> INPUT_REL_HWHEEL.
+              // (X is already 0 at this point, so the HWHEEL half is inert.)
               <&zip_xy_to_scroll_mapper>,
 
-              // Match the pointer's Y direction (whose inversion is set above),
-              // so pushing the stick "up" scrolls up.
-              <&zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)>,
-
+              // Vertical direction: deliberately NOT inverted any more.
+              // Previously a `zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)`
+              // sat here; dropping it swaps "push up" and "push down". Put that
+              // line back (between the mapper and the scaler) to swap it again.
+              //
               // Stick travel per wheel notch. The fork used a 1-in-8 down-sample
               // of mouse reports; this is the proportional equivalent and keeps
               // the remainder, so slow movement still scrolls.
+              // 1/16 = twice as slow as the original 1/8.
               // Raise the second number for slower scrolling, lower it for faster.
-              <&zip_scroll_scaler 1 8>;
+              <&zip_scroll_scaler 1 16>;
+        };
+
+        /*
+         * Precision ("snipe") mode.
+         *
+         * While the `SNIPE` layer is held (`&mo SNIPE` on the TP layer's top-row
+         * `Y` key), stick movement is scaled down to a quarter speed, which makes
+         * it much easier to land on small targets.
+         *
+         * `track-remainders` on `zip_xy_scaler` means the fraction that gets cut
+         * off is carried over to the next report, so slow stick movement still
+         * accumulates into real cursor travel instead of being thrown away.
+         *
+         * Declared after `scroll` on purpose: if both layers are held, scroll
+         * converts Y to WHEEL first, and the scaler only touches INPUT_REL_X /
+         * INPUT_REL_Y -- so snipe slows the pointer without also slowing the
+         * scroll. Change `1 4` to `1 2` / `1 8` for a milder / stronger snipe.
+         */
+        snipe {
+          layers = <SNIPE>;
+          process-next;
+          input-processors = <&zip_xy_scaler 1 4>;
         };
       };
     };

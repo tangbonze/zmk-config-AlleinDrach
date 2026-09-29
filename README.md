@@ -19,7 +19,8 @@ lives on the `studio` branch.
 | 指点杆（PS/2 TrackPoint） | ✅ 保留，UART PS/2 驱动 + 自动图层切换 |
 | 物理布局（Studio 预览必需） | ✅ 由 `config/info.json` 生成，46 键 |
 | RGB 状态指示灯（Caps/Num、BLE、图层） | ✅ 从 fork 移植回本仓库 |
-| 滚动模式（原 `&mmm`） | ✅ 用主线 `zmk,input-listener` 的按层重映射实现，按住 TP 层的键再推指点杆即可滚动（见下） |
+| 滚动模式（原 `&mmm`） | ✅ 用主线 `zmk,input-listener` 的按层重映射实现，按住 TP 层的键再推指点杆即可滚动；横向已关闭、垂直方向已对调、速度 1/16（见下） |
+| Snipe 精调层 | ✅ 层 6，入口是 TP 层 `Y` 键的 `&mo SNIPE`，按住把指点杆降到 1/4 速（见下） |
 | USB 日志 | ❌ 已关闭（USB 只暴露一个串口，见「注意事项」） |
 | TP Set 层（指点杆运行时调参） | ✅ 保留，入口是 TP 层第 1 排第 1 键的 `&mo MOUSE_TP_SET`；修正了上游「最高速度加档」被写成减档的问题（见「TP Set 层」） |
 | 自定义 `macros` / hold-tap | ❌ 已整体移除 —— 在线 Keymap Editor 不认 `macros`，引用它们的那 15 个 hold-tap 也已零引用（见「与在线 Keymap Editor 共存」） |
@@ -92,7 +93,9 @@ dts/bindings/zmk,behavior-rgb-indicators.yaml
 
 Kconfig 开关仍在 `boards/shields/alleindrach/Kconfig.defconfig` 里（fork 就是这么放的），
 已在 `boards/shields/alleindrach/alleindrach.conf` 打开。
-`indicator_toggle` / `ht_ind_tog` 节点也已恢复（当前键位表未引用，可自行绑定）。
+`indicator_toggle` / `ht_ind_tog` 这两个节点**没有**恢复 —— 它们依赖被在线编辑器删掉的
+`macros { }`，已随那批 hold-tap 一起移除（见「与在线 Keymap Editor 共存」）。指示灯本身照旧
+工作：`&rgb_ind` 由本仓库的 `dts/behaviors/rgb_indicators.dtsi` 提供。
 
 ### 滚动模式（原 `&mmm`）怎么解决的
 
@@ -108,40 +111,83 @@ Kconfig 开关仍在 `boards/shields/alleindrach/Kconfig.defconfig` 里（fork �
 2. 改用主线的 `zmk,input-listener` 接同一个 `&mouse_ps2`，并用处理器复原原来 listener 的功能：
    - `layer-toggle` → `zip_temp_layer MOUSE_TP 150`（移动时自动上 TP 层，停 150ms 撤下）
    - `y-invert` → `zip_xy_transform (INPUT_TRANSFORM_Y_INVERT)`
-3. 再加一个只对 `SCROLL` 层生效的子节点：
+3. 再加两个只对某一层生效的子节点：
 
    ```dts
    scroll {
        layers = <SCROLL>;
        process-next;                                           // 滚动时 TP 层照旧联动
        input-processors =
-           <&zip_xy_to_scroll_mapper>,                         // Y→滚轮, X→横向滚轮
-           <&zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)>, // 方向与指针一致
-           <&zip_scroll_scaler 1 8>;                           // 8 格位移 = 1 格滚轮
+           <&zip_x_scaler 0 1>,                                // 把 X 乘 0 = 关掉横向滚动
+           <&zip_xy_to_scroll_mapper>,                         // Y→滚轮（X→横向滚轮已失效）
+           <&zip_scroll_scaler 1 16>;                          // 16 格位移 = 1 格滚轮
+   };
+
+   snipe {
+       layers = <SNIPE>;
+       process-next;
+       input-processors = <&zip_xy_scaler 1 4>;                // 指针降到 1/4 速
    };
    ```
 
-键位表里新增 `Scroll_layer`（全是 `&trans`，纯粹当开关用），并把原来 `&mmm` 的两个位置
-改成 `&mo SCROLL`：**TP 层第 2 排第 7 键**和**底排第 1 键**（原来第 1 排第 7 键那个位置
-现在让给了 TP Set 入口）。
+**横向为什么不是「不映射」而是「乘 0」**：`zip_xy_to_scroll_mapper` 是
+`zmk,input-processor-code-mapper`，它只**改名**列在 `map` 里的 code，**丢不掉**没列出的
+code。所以如果只把 `X → HWHEEL` 这一条从 map 里去点，X 会原样漏到后面的基础处理器，
+继续推光标。改成先在 mapper 之前把 X 乘 0（`zip_x_scaler 0 1`），X 就既不会变成横向滚轮、
+也不会残留成光标位移 —— 注意 `zip_x_scaler` 的 `track-remainders` 在这里正好无害：
+乘数是 0，余量每轮都被算成 0，不会攒出漏网的位移。
+
+键位表里新增 `Scroll_layer` 和 `Snipe_layer`（都是全 `&trans`，纯粹当开关用），并把原来
+`&mmm` 的两个位置改成 `&mo SCROLL`：**TP 层第 2 排第 7 键**和**底排第 1 键**（原来第 1 排
+第 7 键那个位置现在让给了 snipe）。
 
 TP 层第 1 排第 1 键是 `&mo MOUSE_TP_SET`，即 **TP Set 层（层 4）的入口**。
 
-> ⚠️ `Scroll_layer` **必须留在 keymap 的最后**。ZMK 的层索引就是节点出现顺序，
-> 把它插到中间会把 `MOUSE_TP_SET`（4）挤到 5，而 TP Set 入口在生成 DT 里是写死的
-> `&mo 4` —— 结果就是「按 TP Set 键进了滚动层」。这也是为什么它排在
-> `MouseSettings_layer` 之后。动层顺序前先全局搜一遍 `&mo 4`（`&mo SCROLL` 走宏名，安全）。
+> ⚠️ 新增层**只能往后追加**（`Scroll` = 5、`Snipe` = 6）。ZMK 的层索引就是节点出现顺序，
+> 把任何一层插到中间都会把 `MOUSE_TP_SET`（4）挤走，而 TP Set 入口在生成 DT 里是写死的
+> `&mo 4` —— 结果就是「按 TP Set 键进了别的层」。动层顺序前先全局搜一遍 `&mo 4`。
 
-**用法：按住这两个键之一，再推动指点杆就是滚动。**
+**用法：按住滚动键之一，再推动指点杆就是滚动。**
 TP 层只在指点杆移动时才激活（150ms 超时），所以想不碰指点杆就先按住的话，
 可以长按底排的 `&lt 3 TAB` 手动把 TP 层叫出来。
 
-调节：`zip_scroll_scaler 1 8` 的第二个数越大滚得越慢。滚反了就把
-`zip_scroll_transform` 那行删掉。
+调节：
+
+* **滚动速度** —— `zip_scroll_scaler 1 16` 的第二个数越大滚得越慢（8 是原来的值，16 是现在
+  的一半，32 就更慢）。
+* **滚动垂直方向** —— 现在是**没有** `zip_scroll_transform` 的状态，也就是「推上和滚上」相反。
+  想换回相反方向，把 `&zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)` 加回 mapper 和
+  scaler 之间即可（`zip_scroll_transform` 是取负，加/删它就是换方向）。
+* **横向滚动** —— 已关闭（见上面的「乘 0」）。想开回来就把 `<&zip_x_scaler 0 1>` 这一行删掉。
 
 差异：原 `layer-toggle-delay-ms = <150>`（要求先移动 150ms 才激活层）在 `zip_temp_layer`
 里没有对应项，现在是「一动就激活」。想避免打字后误触发，可以给它加
 `require-prior-idle-ms = <150>;`。
+
+### Snipe 层（指点杆精调）
+
+`Snipe_layer`（层 6）把指点杆速度降到 **1/4**，用来对准小目标（点小按钮、拖拽手柄、
+选字）。它自己**没有任何键位** —— 整层全是 `&trans`，唯一作用是让 `mouse_tp.dtsi` 里那个
+`layers = <SNIPE>` 的覆盖生效：
+
+```dts
+snipe {
+    layers = <SNIPE>;
+    process-next;                            // 基础处理器照旧跑，TP 层联动不受影响
+    input-processors = <&zip_xy_scaler 1 4>; // X、Y 都乘 1/4
+};
+```
+
+* **入口**：TP 层第 1 排第 7 键，也就是 BASE 层 `Y` 的位置 —— `&mo SNIPE`，**按住生效**，
+  松开立刻恢复。和滚动键一样是「按住键 + 推杆」的用法，不需要额外切层；
+* **为什么用 `&mo` 而不是 `&tog`**：TP 层是指点杆一动才激活的临时层，`&mo` 可以在手感上
+  无缝衔接；用 `&tog` 的话忘记关就会一直慢，而且想关还得先把 TP 层叫出来；
+* **调力度**：改 `zip_xy_scaler 1 4` 的第二个数，`1 2` 更轻、`1 8` 更狠；
+* **余量累积**：`zip_xy_scaler` 带 `track-remainders`，被裁掉的小数会带到下一次回报，
+  所以慢慢推也能攒出真实位移，不会「推了不动」；
+* **和滚动叠加**：`scroll` 覆盖声明在 `snipe` 之前，所以同时按住两个键时，滚动速度不受
+  snipe 影响（snipe 的 scaler 只作用于 `INPUT_REL_X` / `INPUT_REL_Y`，那时已经变成
+  `INPUT_REL_WHEEL` 了）。
 
 ### TP Set 层（指点杆运行时调参）
 
@@ -250,9 +296,9 @@ make clean        # 删掉 build/
   模块自带的 `zmk,input-listener-ps2` 被 `status = "disabled"`，等价效果来自
   `zip_temp_layer MOUSE_TP 150`（见「滚动模式」一节）。
 * TP Set 层（层 4）的调参键位见「TP Set 层」一节；它的入口是 TP 层第 1 排第 1 键的
-  `&mo MOUSE_TP_SET`。
-* 固件占用：FLASH 242,024 B / 792 KB（29.8%），RAM 73,570 B / 256 KB（28.1%）；
-  `settings_reset` 固件 FLASH 46,188 B。（清掉 hold-tap 之前是 30.4% / 29.5%；
+  `&mo MOUSE_TP_SET`。Snipe 层的入口是同一排第 7 键的 `&mo SNIPE`。
+* 固件占用：FLASH 242,852 B / 792 KB（29.9%），RAM 74,402 B / 256 KB（28.4%）；
+  `settings_reset` 固件 FLASH 46,188 B。（去掉 hold-tap、还没加 snipe 时是 29.8% / 28.1%；
   开着 USB 日志时是 37.5% / 33.6%。）
 
 ---
@@ -267,7 +313,8 @@ make clean        # 删掉 build/
 | TrackPoint (PS/2) | ✅ kept — UART PS/2 driver + automatic layer toggle |
 | Physical layout (required by Studio) | ✅ generated from `config/info.json`, 46 keys |
 | RGB status indicators (Caps/Num, BLE, layer) | ✅ ported back into this repo |
-| Scroll mode (former `&mmm`) | ✅ rebuilt on mainline `zmk,input-listener` per-layer overrides — hold a TP-layer key and move the stick (see below) |
+| Scroll mode (former `&mmm`) | ✅ rebuilt on mainline `zmk,input-listener` per-layer overrides — hold a TP-layer key and move the stick; horizontal off, vertical swapped, 1/16 speed (see below) |
+| Snipe layer | ✅ layer 6, entered with `&mo SNIPE` on the TP layer's `Y` key; hold to drop the pointer to 1/4 speed (see below) |
 | USB logging | ❌ off (USB exposes a single serial port — see caveats) |
 | TP Set layer (runtime TrackPoint tuning) | ✅ kept; entered with `&mo MOUSE_TP_SET` on the first key of the TP layer's top row. Fixes upstream's "upper plateau speed" increase key (see "The TP Set layer") |
 | Custom `macros` / hold-taps | ❌ removed — the online Keymap Editor does not understand `macros`, and the 15 hold-taps that referenced them had zero references left (see "Living with the online Keymap Editor") |
@@ -344,8 +391,10 @@ Two adaptations were needed:
 The Kconfig switches stay in `boards/shields/alleindrach/Kconfig.defconfig` (where
 the fork put them) and are enabled in
 `boards/shields/alleindrach/alleindrach.conf`. The `indicator_toggle` /
-`ht_ind_tog` nodes are restored as well (unused by the current keymap — bind them
-wherever you like).
+`ht_ind_tog` nodes were **not** restored: they depend on the `macros { }` block the
+online editor deleted, so they went with the rest of the hold-taps (see "Living with
+the online Keymap Editor"). The indicators themselves still work — `&rgb_ind` comes
+from this repo's `dts/behaviors/rgb_indicators.dtsi`.
 
 ### How the scroll mode (former `&mmm`) was solved
 
@@ -362,44 +411,93 @@ How it works (all in `config/include/mouse_tp.dtsi`):
    processors reproduce what the module listener did:
    - `layer-toggle` -> `zip_temp_layer MOUSE_TP 150` (auto TP layer while moving)
    - `y-invert` -> `zip_xy_transform (INPUT_TRANSFORM_Y_INVERT)`
-3. A child node makes the remapping layer-conditional:
+3. Two child nodes make the remapping layer-conditional:
 
    ```dts
    scroll {
        layers = <SCROLL>;
        process-next;                                           // keep the TP layer live
        input-processors =
-           <&zip_xy_to_scroll_mapper>,                         // Y -> wheel, X -> h-wheel
-           <&zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)>, // match pointer direction
-           <&zip_scroll_scaler 1 8>;                           // 8 units of travel per notch
+           <&zip_x_scaler 0 1>,                                // X * 0 = horizontal off
+           <&zip_xy_to_scroll_mapper>,                         // Y -> wheel (X half inert)
+           <&zip_scroll_scaler 1 16>;                          // 16 units of travel per notch
+   };
+
+   snipe {
+       layers = <SNIPE>;
+       process-next;
+       input-processors = <&zip_xy_scaler 1 4>;                // quarter pointer speed
    };
    ```
 
-The keymap gains a `Scroll_layer` (all `&trans`; it is just a switch) and the two
-positions that used `&mmm` now hold `&mo SCROLL`: **7th key of the TP layer's second row**
-and **first key of its bottom row** (the top row's 7th key went to the TP-settings entry
-instead).
+**Why horizontal is killed with a scaler rather than left out of `map`**:
+`zip_xy_to_scroll_mapper` is a `zmk,input-processor-code-mapper` — it only *renames* the codes
+listed in `map` and cannot drop an unlisted one. Removing the `X -> HWHEEL` pair would let X
+fall through to the base processors and keep moving the cursor. Multiplying X by zero before
+the mapper (`zip_x_scaler 0 1`) stops it from becoming either horizontal scroll or pointer
+movement. `track-remainders` on `zip_x_scaler` is harmless here: with a multiplier of 0 the
+remainder is recomputed as 0 every time, so nothing can leak out later.
+
+The keymap gains `Scroll_layer` and `Snipe_layer` (both all `&trans`; they are just switches)
+and the two positions that used `&mmm` now hold `&mo SCROLL`: **7th key of the TP layer's
+second row** and **first key of its bottom row** (the top row's 7th key went to snipe).
 
 The first key of the TP layer's top row is `&mo MOUSE_TP_SET` — the **entry to the TP Set
 layer (layer 4)**.
 
-> ⚠️ `Scroll_layer` **must stay last** in the keymap. ZMK derives layer indices from
-> node order, so inserting it earlier would push `MOUSE_TP_SET` (4) to 5 while the entry
-> is a hard-coded `&mo 4` in the generated DT — i.e. the TP-settings key would land on the
-> scroll layer. That is why it sits after `MouseSettings_layer`. Search for `&mo 4` before
-> reordering layers (`&mo SCROLL` goes through the macro name and is safe).
+> ⚠️ New layers may only be **appended** (`Scroll` = 5, `Snipe` = 6). ZMK derives layer
+> indices from node order, so inserting any layer earlier shifts `MOUSE_TP_SET` (4) while the
+> entry key is a hard-coded `&mo 4` in the generated DT. Search for `&mo 4` before reordering
+> layers.
 
-Usage: **hold either of those keys and move the TrackPoint to scroll.** The TP layer is
+Usage: **hold either scroll key and move the TrackPoint to scroll.** The TP layer is
 only up while the stick moves (150ms timeout), so if you would rather not touch the
 stick first, hold `&lt 3 TAB` on the base layer to bring the TP layer up manually.
 
-Tuning: the second number in `zip_scroll_scaler 1 8` — bigger is slower. Scrolling the
-wrong way? Delete the `zip_scroll_transform` line.
+Tuning:
+
+* **Speed** — the second number in `zip_scroll_scaler 1 16`: bigger is slower (8 was the
+  original value; 16 is half that, 32 is slower still).
+* **Vertical direction** — there is deliberately **no** `zip_scroll_transform` any more, so
+  "push up" scrolls the opposite way from before. To swap it back, re-insert
+  `&zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)` between the mapper and the scaler
+  (the transform negates the value, so adding/removing that line is the whole toggle).
+* **Horizontal** — off (see above). Delete the `<&zip_x_scaler 0 1>` entry to bring it back.
 
 Caveat: the module's `layer-toggle-delay-ms = <150>` (the stick had to move for 150ms
 before the layer activated) has no counterpart in `zip_temp_layer`; the layer now turns
 on with the first movement event. Add `require-prior-idle-ms = <150>;` if you want to
 stop the layer popping up right after typing.
+
+### The Snipe layer (fine pointing)
+
+`Snipe_layer` (layer 6) drops the TrackPoint to **1/4 speed** so you can land on small
+targets — small buttons, drag handles, selecting text. The layer carries **no bindings of
+its own** (every key is `&trans`); its only job is to make the `layers = <SNIPE>` override in
+`mouse_tp.dtsi` take effect:
+
+```dts
+snipe {
+    layers = <SNIPE>;
+    process-next;                             // base processors still run, TP layer unaffected
+    input-processors = <&zip_xy_scaler 1 4>;  // 1/4 on both X and Y
+};
+```
+
+* **Entry point**: the 7th key of the TP layer's top row — the base layer's `Y` position.
+  It is `&mo SNIPE`, so it is **hold-to-activate** and releases back to full speed instantly.
+  Same "hold a key and move the stick" gesture as the scroll keys, no extra layer switch;
+* **Why `&mo` and not `&tog`**: the TP layer is a temporary layer that only comes up while the
+  stick moves, so `&mo` chains seamlessly with it. With `&tog` you would be stuck at 1/4 speed
+  if you forgot to turn it off, and turning it off means bringing the TP layer up first;
+* **Strength**: change the second number in `zip_xy_scaler 1 4` — `1 2` is milder, `1 8` is
+  stronger;
+* **Remainders**: `zip_xy_scaler` has `track-remainders`, so the fraction that gets cut off is
+  carried into the next report. Slow stick movement still accumulates into real cursor travel
+  instead of being discarded;
+* **Combined with scroll**: the `scroll` override is declared before `snipe`, so holding both
+  keys leaves the scroll speed alone (the snipe scaler only touches `INPUT_REL_X` /
+  `INPUT_REL_Y`, which by then have already become `INPUT_REL_WHEEL`).
 
 ### The TP Set layer (runtime TrackPoint tuning)
 
@@ -523,6 +621,7 @@ The layout preview comes from
   does the equivalent job (see the scroll section).
 * The TP Set layer (layer 4) — which keys tune what — is documented in "The TP Set layer"
   above; it is entered with `&mo MOUSE_TP_SET` on the first key of the TP layer's top row.
-* Firmware size: FLASH 242,024 B / 792 KB (29.8%), RAM 73,570 B / 256 KB (28.1%);
-  the `settings_reset` build is FLASH 46,188 B. (Before the hold-taps were dropped it was
-  30.4% / 29.5%; with USB logging on, 37.5% / 33.6%.)
+  The Snipe layer is entered with `&mo SNIPE` on the 7th key of that same row.
+* Firmware size: FLASH 242,852 B / 792 KB (29.9%), RAM 74,402 B / 256 KB (28.4%);
+  the `settings_reset` build is FLASH 46,188 B. (After the hold-taps were dropped but
+  before snipe existed it was 29.8% / 28.1%; with USB logging on, 37.5% / 33.6%.)
