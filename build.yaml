@@ -7,9 +7,15 @@
 # `boards/shields/alleindrach/alleindrach.conf`, so local builds pick it up too.
 #
 # NOTE: only ONE `snippet:` is allowed per entry (ZMK's build action passes a
-# single `-S`), which is why the USB logging console is declared inline in
-# `boards/shields/alleindrach/boards/nice_nano_v2.overlay` instead of by adding
-# the upstream `zmk-usb-logging` snippet here.
+# single `-S`), which is why USB logging can never be enabled by adding the
+# upstream `zmk-usb-logging` snippet here: `studio-rpc-usb-uart` already takes
+# that slot. Logging is off anyway; should you want it back, uncomment
+# `CONFIG_ZMK_USB_LOGGING=y` in `config/alleindrach.conf` *and* the inline
+# CDC-ACM console block at the bottom of
+# `boards/shields/alleindrach/boards/nice_nano_v2.overlay`.
+#
+# This repo also carries `zephyr/module.yml` at its root, so the upstream CI
+# workflow detects it and passes `-DZMK_EXTRA_MODULES=$GITHUB_WORKSPACE` for us.
 ---
 include:
   - board: nice_nano_v2
