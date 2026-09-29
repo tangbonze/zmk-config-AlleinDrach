@@ -1,3 +1,12 @@
 build:
+  # Process ./CMakeLists.txt so this repo can contribute its own headers and
+  # sources: the `zmk/mouse/*` compatibility shims and the RGB status-indicator
+  # driver ported back from the zmk-ps2 fork.
+  cmake: .
   settings:
+    # Shields live in ./boards/shields.
     board_root: .
+    # DTS bindings and behaviour includes live in ./dts, e.g.
+    #   dts/bindings/zmk,rgb-indicators.yaml
+    #   dts/behaviors/rgb_indicators.dtsi
+    dts_root: .

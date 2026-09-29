@@ -1,0 +1,4 @@
+# All build artifacts and downloaded dependencies are ignored.
+build/
+dependencies/
+.west/

@@ -1,0 +1,81 @@
+/*
+ * Copyright (c) 2020 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Physical layout for the AlleinDrach.
+ *
+ * ZMK Studio needs a physical layout that carries the `keys` property, and it
+ * must not rely on `chosen { zmk,matrix-transform }` any more. The key
+ * positions below are the same ones the old QMK-style `config/info.json`
+ * described, converted to centi-"keyunits" (100 = 1u):
+ *
+ *   w  h   x    y   rot rx ry
+ *
+ * 4 rows x 12 units, 46 keys, with a 2u Space and a 2u Enter on the bottom
+ * row. The order matches the matrix transform in `alleindrach.dtsi`.
+ */
+
+#include <physical_layouts.dtsi>
+
+/ {
+    physical_layout0: physical_layout_0 {
+        compatible = "zmk,physical-layout";
+        display-name = "Default";
+
+        kscan = <&kscan0>;
+        transform = <&default_transform>;
+
+        keys //                          w    h    x    y  rot rx ry
+            = <&key_physical_attrs 100 100    0    0    0  0  0>
+            , <&key_physical_attrs 100 100  100    0    0  0  0>
+            , <&key_physical_attrs 100 100  200    0    0  0  0>
+            , <&key_physical_attrs 100 100  300    0    0  0  0>
+            , <&key_physical_attrs 100 100  400    0    0  0  0>
+            , <&key_physical_attrs 100 100  500    0    0  0  0>
+            , <&key_physical_attrs 100 100  600    0    0  0  0>
+            , <&key_physical_attrs 100 100  700    0    0  0  0>
+            , <&key_physical_attrs 100 100  800    0    0  0  0>
+            , <&key_physical_attrs 100 100  900    0    0  0  0>
+            , <&key_physical_attrs 100 100 1000    0    0  0  0>
+            , <&key_physical_attrs 100 100 1100    0    0  0  0>
+
+            , <&key_physical_attrs 100 100    0  100    0  0  0>
+            , <&key_physical_attrs 100 100  100  100    0  0  0>
+            , <&key_physical_attrs 100 100  200  100    0  0  0>
+            , <&key_physical_attrs 100 100  300  100    0  0  0>
+            , <&key_physical_attrs 100 100  400  100    0  0  0>
+            , <&key_physical_attrs 100 100  500  100    0  0  0>
+            , <&key_physical_attrs 100 100  600  100    0  0  0>
+            , <&key_physical_attrs 100 100  700  100    0  0  0>
+            , <&key_physical_attrs 100 100  800  100    0  0  0>
+            , <&key_physical_attrs 100 100  900  100    0  0  0>
+            , <&key_physical_attrs 100 100 1000  100    0  0  0>
+            , <&key_physical_attrs 100 100 1100  100    0  0  0>
+
+            , <&key_physical_attrs 100 100    0  200    0  0  0>
+            , <&key_physical_attrs 100 100  100  200    0  0  0>
+            , <&key_physical_attrs 100 100  200  200    0  0  0>
+            , <&key_physical_attrs 100 100  300  200    0  0  0>
+            , <&key_physical_attrs 100 100  400  200    0  0  0>
+            , <&key_physical_attrs 100 100  500  200    0  0  0>
+            , <&key_physical_attrs 100 100  600  200    0  0  0>
+            , <&key_physical_attrs 100 100  700  200    0  0  0>
+            , <&key_physical_attrs 100 100  800  200    0  0  0>
+            , <&key_physical_attrs 100 100  900  200    0  0  0>
+            , <&key_physical_attrs 100 100 1000  200    0  0  0>
+            , <&key_physical_attrs 100 100 1100  200    0  0  0>
+
+            , <&key_physical_attrs 100 100    0  300    0  0  0>
+            , <&key_physical_attrs 100 100  100  300    0  0  0>
+            , <&key_physical_attrs 100 100  200  300    0  0  0>
+            , <&key_physical_attrs 100 100  300  300    0  0  0>
+            , <&key_physical_attrs 200 100  400  300    0  0  0>
+            , <&key_physical_attrs 200 100  600  300    0  0  0>
+            , <&key_physical_attrs 100 100  800  300    0  0  0>
+            , <&key_physical_attrs 100 100  900  300    0  0  0>
+            , <&key_physical_attrs 100 100 1000  300    0  0  0>
+            , <&key_physical_attrs 100 100 1100  300    0  0  0>
+            ;
+    };
+};

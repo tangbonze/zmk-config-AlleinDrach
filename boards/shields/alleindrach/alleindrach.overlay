@@ -511,6 +511,10 @@
 		// zmk-config/config/includes/mouse_tp.dtsi
     };
 // #endif 
+    // RGB status indicators, ported back from the zmk-ps2 fork and now shipped
+    // by this repo's local module (src/rgb_indicators.c). The driver renders to
+    // the strip referenced by `chosen { zmk,indicators }`, declared in
+    // boards/nice_nano_v2.overlay.
     rgb_indicators: rgb_indicators {
         compatible  = "zmk,rgb-indicators";
         capslock    = <0>;
@@ -525,8 +529,8 @@
     };
 
     chosen {
-        zmk,kscan = &kscan0;
-        zmk,matrix-transform = &default_transform;
+        // ZMK Studio: the kscan and matrix transform moved into
+        // `physical_layout0` (see alleindrach-layouts.dtsi).
         zmk,rgb-indicators = &rgb_indicators;
     };
 };

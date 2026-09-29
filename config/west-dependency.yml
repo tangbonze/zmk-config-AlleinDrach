@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT
+#
+# Firmware dependencies for the AlleinDrach — branch `studio`.
+#
+# Two things changed relative to the `main` branch:
+#
+#   1. `zmk` is now the *official* ZMK v0.3.0 release instead of alleindrach's
+#      `zmk-ps2@allein/mouse_ps2_module_base` fork. That fork predates ZMK
+#      Studio entirely (`ZMK_STUDIO` does not even exist in its Kconfig), so
+#      Studio support could not be switched on there.
+#
+#      ZMK v0.3.0 still pins Zephyr `v3.5.0+zmk-fixes`, the very same Zephyr
+#      revision the old fork used, so the Bluetooth stack, the OLED and the RGB
+#      underglow behave exactly as before — only ZMK's own code moves forward.
+#
+#   2. The PS/2 TrackPoint driver comes from badjeff's maintained port of
+#      infused-kim's `kb_zmk_ps2_mouse_trackpoint_driver`. The old fork pulled
+#      it in through its own `app/west.yml`; now that the mouse/pointing PR is
+#      in mainline ZMK, the module is used directly.
+#
+# Bumping these: raise `zmk` first, then move the driver to a revision that
+# matches its Zephyr line (badjeff's `26bdf2d`+ is the Zephyr 4.1 line).
+manifest:
+  version: 1.2
+  remotes:
+    - name: zmkfirmware
+      url-base: https://github.com/zmkfirmware
+    - name: badjeff
+      url-base: https://github.com/badjeff
+  projects:
+    - name: zmk
+      remote: zmkfirmware
+      revision: v0.3.0
+      import: app/west.yml
+
+    # PS/2 mouse / TrackPoint driver. Pinned to the last revision from *before*
+    # badjeff's "fix build for zephyr 4.1" commit, because this branch builds on
+    # Zephyr 3.5.
+    - name: kb_zmk_ps2_mouse_trackpoint_driver
+      remote: badjeff
+      revision: 05b309d995bf9a7edcdc9cf641d5a2f20ce83fa1

@@ -44,3 +44,29 @@
         zmk,underglow = &led_strip;
     };
 };
+
+/*
+ * Console / logging transport
+ *
+ * This shield hands `uart0` to the PS/2 trackpoint driver (see
+ * config/include/mouse_tp.dtsi), so the board has no serial port left to serve
+ * as `zephyr,console`. ZMK's `CONFIG_ZMK_USB_LOGGING` selects `USB_UART_CONSOLE`
+ * and therefore *requires* a console node; upstream ZMK normally supplies it
+ * via the `zmk-usb-logging` snippet, but ZMK's build action only accepts one
+ * `snippet:` per build entry and that slot holds `studio-rpc-usb-uart`.
+ *
+ * Declaring the CDC-ACM console inline, mirroring the upstream
+ * `zmk-usb-logging` snippet and the original zmk-ps2 fork's board dtsi.
+ */
+/ {
+    chosen {
+        zephyr,console = &cdc_acm_uart;
+        zephyr,shell-uart = &cdc_acm_uart;
+    };
+};
+
+&zephyr_udc0 {
+    cdc_acm_uart: cdc_acm_uart {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};

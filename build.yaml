@@ -1,24 +1,19 @@
 # This file generates the GitHub Actions matrix.
-# For simple board + shield combinations, add them to the top level board and
-# shield arrays, for more control, add individual board + shield combinations
-# to the `include` property. You can also use the `cmake-args` property to
-# pass flags to the build command and `artifact-name` to assign a name to
-# distinguish build outputs from each other:
 #
-# board: [ "nice_nano_v2" ]
-# shield: [ "corne_left", "corne_right" ]
-# include:
-#   - board: bdn9_rev2
-#   - board: nice_nano_v2
-#     shield: reviung41
-#   - board: nice_nano_v2
-#     shield: corne_left
-#     cmake-args: -DCONFIG_ZMK_USB_LOGGING=y
-#     artifact-name: corne_left_with_logging
+# Reference: https://zmk.dev/docs/user-setup#add-a-keyboard
 #
+# `studio-rpc-usb-uart` adds the USB CDC-ACM endpoint that ZMK Studio talks to.
+# `CONFIG_ZMK_STUDIO=y` lives in the shield's
+# `boards/shields/alleindrach/alleindrach.conf`, so local builds pick it up too.
+#
+# NOTE: only ONE `snippet:` is allowed per entry (ZMK's build action passes a
+# single `-S`), which is why the USB logging console is declared inline in
+# `boards/shields/alleindrach/boards/nice_nano_v2.overlay` instead of by adding
+# the upstream `zmk-usb-logging` snippet here.
 ---
 include:
   - board: nice_nano_v2
     shield: alleindrach
+    snippet: studio-rpc-usb-uart
   - board: nice_nano_v2
     shield: settings_reset

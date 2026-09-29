@@ -5,6 +5,12 @@
  */
 
 #include <dt-bindings/zmk/indicator.h>
+// Mainline ZMK's `behaviors.dtsi` does not pull in the RGB status-indicator
+// behaviour; the zmk-ps2 fork added the include to its own copy of that file.
+// Here the behaviour ships with this repo's local module instead, so it has to
+// be included explicitly. See zephyr/module.yml (dts_root) and
+// dts/behaviors/rgb_indicators.dtsi.
+#include <behaviors/rgb_indicators.dtsi>
 
 #define BASE 0
 #define LOWER 1
@@ -26,7 +32,9 @@
  */
 
 #include <behaviors/mouse_keys.dtsi>
-#include <behaviors/mouse_mode.dtsi>
+// TEMP(migration): `behaviors/mouse_mode.dtsi` (the `&mmm` behaviour) lived in
+// alleindrach's own PS/2 driver module fork; it is being ported back too.
+// #include <behaviors/mouse_mode.dtsi>
 
 #define HAS_MOUSE_KEYS
   #define HAS_MOUSE_TP
@@ -563,13 +571,17 @@
             display-name = "TP";
             bindings = <
 &trans  &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
-&trans  &trans  &trans  &trans     &trans     &trans     &mmm       &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
-&mmm    &trans  &trans  &mkp MCLK  &mkp LCLK  &mkp RCLK  &mkp MCLK  &trans  &trans  &trans
+&trans  &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &mkp MCLK  &mkp LCLK  &mkp RCLK  &mkp MCLK  &trans  &trans  &trans
             >;
         };
 
         // You can find the defines for the actual key press behaviors in `include/mouse_tp.dtsi`.
+        //
+        // TEMP(migration): the top-left key of the TP layer and the first key of
+        // its bottom row used `&mmm` (mouse move/scroll mode toggle) from the
+        // zmk-ps2 fork. Being ported back; `&trans` for now.
 
         MouseSettings_layer {
             display-name = "TP Set";
