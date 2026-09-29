@@ -70,33 +70,82 @@
   // (usually the right side)
   #ifdef MOUSE_PS2_DT_PRESENT
 
+    // Mainline ZMK's input processors (`zip_temp_layer`, `zip_xy_transform`,
+    // `zip_xy_to_scroll_mapper`, ...) are not pulled in by `behaviors.dtsi`, so
+    // include them here -- only when the TrackPoint is actually built.
+    #include <input/processors.dtsi>
+    #include <dt-bindings/zmk/input_transform.h>
+
    /*
     * Input Listener Config
+    *
+    * This uses mainline ZMK's `zmk,input-listener` instead of the driver
+    * module's `zmk,input-listener-ps2` (which is disabled further down).
+    *
+    * Reason: the module's listener binding only offers
+    * `device / xy-swap / x-invert / y-invert / scale-multiplier /
+    *  scale-divisor / layer-toggle / layer-toggle-*-ms` -- there is no way to
+    * turn stick movement into wheel scrolling. Mainline's listener runs
+    * `input-processor`s and supports per-layer overrides, which is exactly what
+    * a "hold a key, then move the TrackPoint to scroll" mode needs.
+    *
+    * Everything the module listener did is reproduced with processors:
+    *   layer-toggle             -> `zip_temp_layer`   (layer, timeout-ms)
+    *   y-invert                 -> `zip_xy_transform` (INPUT_TRANSFORM_Y_INVERT)
+    *   scale-multiplier/divisor -> `zip_xy_scaler`    (mul, div)  [unused: 1/1]
+    *
+    * Difference: the module's `layer-toggle-delay-ms` (how long the stick had to
+    * move before the layer activated) has no equivalent -- the layer now turns on
+    * with the first movement event. If you would rather avoid the layer popping
+    * up right after typing, give the processor's node a
+    * `require-prior-idle-ms = <150>;` property.
     */
 
-    &mouse_ps2_input_listener {
+    / {
+      trackpoint_listener: trackpoint_listener {
+        compatible = "zmk,input-listener";
+        device = <&mouse_ps2>;
 
-      // Adjust pointing device axes.
-      // This adjusts the values inside the zmk driver. Some
-      // trackpoints also allow you to adjust it in their firmware. Check
-      // the driver options below for more info.
-      // xy-swap;
-      // x-invert;
-      // y-invert;
+        input-processors =
+            // Automatically activate the TP layer while the stick moves, and
+            // deactivate it 150ms after the last movement.
+            <&zip_temp_layer MOUSE_TP 150>,
 
-      // Set the layer that should automatically activate when the mouse is
-      // moving.
-      layer-toggle = <MOUSE_TP>;
+            // Adjust pointing device axes (was `y-invert;` on the module
+            // listener). Add INPUT_TRANSFORM_X_INVERT and/or
+            // INPUT_TRANSFORM_XY_SWAP here if you ever need them.
+            <&zip_xy_transform (INPUT_TRANSFORM_Y_INVERT)>;
 
-      // How long the mouse needs to move for before the layer is activated (to
-      // avoid accidental activations while typing) (Default: 250)
-      layer-toggle-delay-ms = <150>;
+        /*
+         * Scroll mode.
+         *
+         * While the `SCROLL` layer is held (`&mo SCROLL` in the keymap), stick
+         * movement is reported as wheel / horizontal wheel instead of pointer
+         * movement -- the same idea as the old `&mmm` behaviour.
+         */
+        scroll {
+          layers = <SCROLL>;
 
-      // How long to wait, after the last mouse movement, before deactivating
-      // the layer (Default: 250)
-      layer-toggle-timeout-ms = <150>;
+          // Also run the base processors above, so the TP layer keeps being
+          // toggled while scrolling (its mouse buttons stay usable).
+          // Order: the processors below run first, then the base ones.
+          process-next;
 
-      y-invert;
+          input-processors =
+              // INPUT_REL_Y -> INPUT_REL_WHEEL, INPUT_REL_X -> INPUT_REL_HWHEEL.
+              <&zip_xy_to_scroll_mapper>,
+
+              // Match the pointer's Y direction (whose inversion is set above),
+              // so pushing the stick "up" scrolls up.
+              <&zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)>,
+
+              // Stick travel per wheel notch. The fork used a 1-in-8 down-sample
+              // of mouse reports; this is the proportional equivalent and keeps
+              // the remainder, so slow movement still scrolls.
+              // Raise the second number for slower scrolling, lower it for faster.
+              <&zip_scroll_scaler 1 8>;
+        };
+      };
     };
 
 
@@ -175,9 +224,12 @@
       status = "okay";
     };
 
+    // Disabled on purpose: mainline ZMK's `zmk,input-listener`
+    // (`trackpoint_listener` above) consumes the TrackPoint instead, so that
+    // scroll-on-layer is possible. Enabling this too would make every movement
+    // report twice.
     &mouse_ps2_input_listener {
-      status = "okay";
-
+      status = "disabled";
     };
 
     #ifdef MOUSE_PS2_DRIVER_UART

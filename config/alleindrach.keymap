@@ -20,6 +20,10 @@
 #define CONTROL_LAYER 2
 #define MOUSE_TP 3
 #define MOUSE_TP_SET 4
+// Scroll mode layer. Holding `&mo SCROLL` makes the TrackPoint listener report
+// wheel/horizontal-wheel instead of pointer movement -- see
+// `include/mouse_tp.dtsi`. This replaced the fork's `&mmm` behaviour.
+#define SCROLL 5
 
 /*
  * Defines to enable/disable features
@@ -566,22 +570,25 @@
 
         // Automatically activated when the mouse or trackpoint moves.
         // Configured in `include/mouse_tp.dtsi`.
+        //
+        // `&mo SCROLL` replaces the fork's `&mmm` (mouse move/scroll mode toggle)
+        // at the same two positions it used to occupy: the 7th key of the top row
+        // and the first key of the bottom row. Hold either one and move the
+        // TrackPoint to scroll. Since the TP layer is only up while the stick
+        // moves (150ms timeout), hold `&lt 3 TAB` on the base layer first if you
+        // want to scroll without touching the stick to wake the layer.
 
         MouseTP_layer {
             display-name = "TP";
             bindings = <
-&trans  &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
-&trans  &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
-&trans  &trans  &trans  &trans     &trans     &trans     &trans     &trans  &trans  &trans  &trans  &trans
-&trans  &trans  &trans  &mkp MCLK  &mkp LCLK  &mkp RCLK  &mkp MCLK  &trans  &trans  &trans
+&trans  &trans  &trans  &trans     &trans     &trans     &mo SCROLL  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans     &trans     &trans     &trans      &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans     &trans     &trans     &trans      &trans  &trans  &trans  &trans  &trans
+&mo SCROLL  &trans  &trans  &mkp MCLK  &mkp LCLK  &mkp RCLK  &mkp MCLK  &trans  &trans  &trans
             >;
         };
 
         // You can find the defines for the actual key press behaviors in `include/mouse_tp.dtsi`.
-        //
-        // TEMP(migration): the top-left key of the TP layer and the first key of
-        // its bottom row used `&mmm` (mouse move/scroll mode toggle) from the
-        // zmk-ps2 fork. Being ported back; `&trans` for now.
 
         MouseSettings_layer {
             display-name = "TP Set";
@@ -589,6 +596,23 @@
 &none  &none  &none  &none                              &none   &none   &none                                        &none      &none      &none U_MSS_TP_S_D U_MSS_TP_S_I U_MSS_RESET  &none      &none
 &none  &none  &none  &none                              &none   &none   &none U_MSS_TP_V6_D U_MSS_TP_V6_D U_MSS_LOG  &none      &none      &none                                        &none      &none
 &none  &none  &none  &none U_MSS_TP_NI_D U_MSS_TP_NI_I  &trans  &trans  &trans                                       &mkp MCLK  &mkp LCLK  &mkp RCLK                                    &mkp MCLK  &trans U_MSS_TP_PT_D U_MSS_TP_PT_I
+            >;
+        };
+
+        // MUST stay last: `SCROLL` is `#define`d to this layer's index (5), and
+        // inserting a layer before it would shift `MOUSE_TP_SET` (4) out from
+        // under `U_TOG_TP_SET`.
+        //
+        // Held down by `&mo SCROLL` on the TP layer. Every key stays transparent,
+        // so this layer only exists to flip the TrackPoint into scroll mode.
+
+        Scroll_layer {
+            display-name = "Scroll";
+            bindings = <
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans  &trans
             >;
         };
     };

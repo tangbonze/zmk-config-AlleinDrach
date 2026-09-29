@@ -19,7 +19,7 @@ lives on the `studio` branch.
 | 指点杆（PS/2 TrackPoint） | ✅ 保留，UART PS/2 驱动 + 自动图层切换 |
 | 物理布局（Studio 预览必需） | ✅ 由 `config/info.json` 生成，46 键 |
 | RGB 状态指示灯（Caps/Num、BLE、图层） | ✅ 从 fork 移植回本仓库 |
-| `&mmm` 鼠标「移动/滚动」模式切换 | ❌ 未移植（见下） |
+| 滚动模式（原 `&mmm`） | ✅ 用主线 `zmk,input-listener` 的按层重映射实现，按住 TP 层的键再推指点杆即可滚动（见下） |
 | USB 日志 | ❌ 已关闭（USB 只暴露一个串口，见「注意事项」） |
 
 ### 为什么不是 DYA Studio
@@ -92,11 +92,50 @@ Kconfig 开关仍在 `boards/shields/alleindrach/Kconfig.defconfig` 里（fork �
 已在 `boards/shields/alleindrach/alleindrach.conf` 打开。
 `indicator_toggle` / `ht_ind_tog` 节点也已恢复（当前键位表未引用，可自行绑定）。
 
-### +`&mmm` 为什么没移植
+### 滚动模式（原 `&mmm`）怎么解决的
 
 `&mmm`（鼠标移动/滚动模式切换）是 alleindrach 自己模块 fork 里的
-`zmk,behavior-mouse-mode`，mainline 也没有。按你的选择，这块交给 ZMK 原生的
-指点杆/滚动能力，键位表里原来用 `&mmm` 的两个位置现在是 `&trans`。
+`zmk,behavior-mouse-mode`，mainline 没有。但主线给了条更干净的路：
+**`zmk,input-listener` 的「按层覆盖 + input-processor」**。
+
+做法（都在 `config/include/mouse_tp.dtsi`）：
+
+1. 驱动模块自带的 listener（`zmk,input-listener-ps2`）设成 `status = "disabled"` ——
+   它的 binding 只有 `device / xy-swap / x-invert / y-invert / scale-* /
+   layer-toggle*`，**完全没有滚动能力**；
+2. 改用主线的 `zmk,input-listener` 接同一个 `&mouse_ps2`，并用处理器复原原来 listener 的功能：
+   - `layer-toggle` → `zip_temp_layer MOUSE_TP 150`（移动时自动上 TP 层，停 150ms 撤下）
+   - `y-invert` → `zip_xy_transform (INPUT_TRANSFORM_Y_INVERT)`
+3. 再加一个只对 `SCROLL` 层生效的子节点：
+
+   ```dts
+   scroll {
+       layers = <SCROLL>;
+       process-next;                                           // 滚动时 TP 层照旧联动
+       input-processors =
+           <&zip_xy_to_scroll_mapper>,                         // Y→滚轮, X→横向滚轮
+           <&zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)>, // 方向与指针一致
+           <&zip_scroll_scaler 1 8>;                           // 8 格位移 = 1 格滚轮
+   };
+   ```
+
+键位表里新增 `Scroll_layer`（全是 `&trans`，纯粹当开关用），并把原来 `&mmm` 的两个位置
+改成 `&mo SCROLL`：**TP 层第 1 排第 7 键**（`Y` 的位置）和**底排第 1 键**。
+
+> ⚠️ `Scroll_layer` **必须留在 keymap 的最后**。ZMK 的层索引就是节点出现顺序，
+> 把它插到中间会把 `MOUSE_TP_SET`（4）挤到 5，而 `U_TOG_TP_SET` 还写着 4 ——
+> 结果就是「按 TP Set 键进了滚动层」。这也是为什么它排在 `MouseSettings_layer` 之后。
+
+**用法：按住这两个键之一，再推动指点杆就是滚动。**
+TP 层只在指点杆移动时才激活（150ms 超时），所以想不碰指点杆就先按住的话，
+可以长按底排的 `&lt 3 TAB` 手动把 TP 层叫出来。
+
+调节：`zip_scroll_scaler 1 8` 的第二个数越大滚得越慢。滚反了就把
+`zip_scroll_transform` 那行删掉。
+
+差异：原 `layer-toggle-delay-ms = <150>`（要求先移动 150ms 才激活层）在 `zip_temp_layer`
+里没有对应项，现在是「一动就激活」。想避免打字后误触发，可以给它加
+`require-prior-idle-ms = <150>;`。
 
 ### 构建
 
@@ -162,7 +201,7 @@ make clean        # 删掉 build/
 | TrackPoint (PS/2) | ✅ kept — UART PS/2 driver + automatic layer toggle |
 | Physical layout (required by Studio) | ✅ generated from `config/info.json`, 46 keys |
 | RGB status indicators (Caps/Num, BLE, layer) | ✅ ported back into this repo |
-| `&mmm` mouse move/scroll mode toggle | ❌ not ported (see below) |
+| Scroll mode (former `&mmm`) | ✅ rebuilt on mainline `zmk,input-listener` per-layer overrides — hold a TP-layer key and move the stick (see below) |
 | USB logging | ✅ kept (adds a second serial port — see caveats) |
 
 ### Why not DYA Studio
@@ -240,12 +279,54 @@ the fork put them) and are enabled in
 `ht_ind_tog` nodes are restored as well (unused by the current keymap — bind them
 wherever you like).
 
-### Why `&mmm` was not ported
+### How the scroll mode (former `&mmm`) was solved
 
-`&mmm` (mouse move/scroll mode toggle) is `zmk,behavior-mouse-mode` from
-alleindrach's own module fork and does not exist in mainline. Per your choice this
-is left to ZMK's native pointing/scroll handling; the two keymap positions that
-used `&mmm` now use `&trans`.
+`&mmm` (mouse move/scroll mode toggle) is `zmk,behavior-mouse-mode` from alleindrach's
+own module fork and does not exist in mainline. Mainline has a cleaner route though:
+**`zmk,input-listener`'s per-layer overrides plus `input-processor`s**.
+
+How it works (all in `config/include/mouse_tp.dtsi`):
+
+1. The driver module's own listener (`zmk,input-listener-ps2`) is set to
+   `status = "disabled"` — its binding only offers `device / xy-swap / x-invert /
+   y-invert / scale-* / layer-toggle*`, i.e. **no scrolling at all**.
+2. Mainline's `zmk,input-listener` takes over the same `&mouse_ps2` device and
+   processors reproduce what the module listener did:
+   - `layer-toggle` -> `zip_temp_layer MOUSE_TP 150` (auto TP layer while moving)
+   - `y-invert` -> `zip_xy_transform (INPUT_TRANSFORM_Y_INVERT)`
+3. A child node makes the remapping layer-conditional:
+
+   ```dts
+   scroll {
+       layers = <SCROLL>;
+       process-next;                                           // keep the TP layer live
+       input-processors =
+           <&zip_xy_to_scroll_mapper>,                         // Y -> wheel, X -> h-wheel
+           <&zip_scroll_transform (INPUT_TRANSFORM_Y_INVERT)>, // match pointer direction
+           <&zip_scroll_scaler 1 8>;                           // 8 units of travel per notch
+   };
+   ```
+
+The keymap gains a `Scroll_layer` (all `&trans`; it is just a switch) and the two
+positions that used `&mmm` now hold `&mo SCROLL`: **7th key of the TP layer's top row**
+(the `Y` spot) and **first key of its bottom row**.
+
+> ⚠️ `Scroll_layer` **must stay last** in the keymap. ZMK derives layer indices from
+> node order, so inserting it earlier would push `MOUSE_TP_SET` (4) to 5 while
+> `U_TOG_TP_SET` still says 4 — i.e. the TP-settings key would land on the scroll layer.
+> That is why it sits after `MouseSettings_layer`.
+
+Usage: **hold either of those keys and move the TrackPoint to scroll.** The TP layer is
+only up while the stick moves (150ms timeout), so if you would rather not touch the
+stick first, hold `&lt 3 TAB` on the base layer to bring the TP layer up manually.
+
+Tuning: the second number in `zip_scroll_scaler 1 8` — bigger is slower. Scrolling the
+wrong way? Delete the `zip_scroll_transform` line.
+
+Caveat: the module's `layer-toggle-delay-ms = <150>` (the stick had to move for 150ms
+before the layer activated) has no counterpart in `zip_temp_layer`; the layer now turns
+on with the first movement event. Add `require-prior-idle-ms = <150>;` if you want to
+stop the layer popping up right after typing.
 
 ### Building
 
