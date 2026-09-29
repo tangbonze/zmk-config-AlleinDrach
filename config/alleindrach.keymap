@@ -592,9 +592,12 @@
 
         MouseSettings_layer {
             display-name = "TP Set";
+            // Upstream shipped `U_MSS_TP_V6_D` twice on the second row, so the
+            // "raise the upper plateau speed" key was a no-op duplicate of the
+            // lower one. The second entry is the increase key.
             bindings = <
 &none  &none  &none  &none                              &none   &none   &none                                        &none      &none      &none U_MSS_TP_S_D U_MSS_TP_S_I U_MSS_RESET  &none      &none
-&none  &none  &none  &none                              &none   &none   &none U_MSS_TP_V6_D U_MSS_TP_V6_D U_MSS_LOG  &none      &none      &none                                        &none      &none
+&none  &none  &none  &none                              &none   &none   &none U_MSS_TP_V6_D U_MSS_TP_V6_I U_MSS_LOG  &none      &none      &none                                        &none      &none
 &none  &none  &none  &none U_MSS_TP_NI_D U_MSS_TP_NI_I  &trans  &trans  &trans                                       &mkp MCLK  &mkp LCLK  &mkp RCLK                                    &mkp MCLK  &trans U_MSS_TP_PT_D U_MSS_TP_PT_I
             >;
         };

@@ -21,6 +21,7 @@ lives on the `studio` branch.
 | RGB 状态指示灯（Caps/Num、BLE、图层） | ✅ 从 fork 移植回本仓库 |
 | 滚动模式（原 `&mmm`） | ✅ 用主线 `zmk,input-listener` 的按层重映射实现，按住 TP 层的键再推指点杆即可滚动（见下） |
 | USB 日志 | ❌ 已关闭（USB 只暴露一个串口，见「注意事项」） |
+| TP Set 层（指点杆运行时调参） | ✅ 保留；修正了上游「最高速度加档」被写成减档的问题（见「TP Set 层」） |
 
 ### 为什么不是 DYA Studio
 
@@ -137,6 +138,39 @@ TP 层只在指点杆移动时才激活（150ms 超时），所以想不碰指�
 里没有对应项，现在是「一动就激活」。想避免打字后误触发，可以给它加
 `require-prior-idle-ms = <150>;`。
 
+### TP Set 层（指点杆运行时调参）
+
+`MouseSettings_layer`（层 4）用驱动模块的 `&mms`（`zmk,behavior-mouse-setting`）在运行时改
+指点杆参数。整层只有 10 个键有功能，其余是 `&none`（不是 `&trans`，所以按住这层时那些键是
+死的，不会漏到底层）：
+
+| 位置（BASE 层的对应键） | 绑定 | 作用 |
+| --- | --- | --- |
+| 第1排第11/12键（`P` / `BSPC`） | `U_MSS_TP_S_D` / `U_MSS_TP_S_I` | 灵敏度 −10 / +10（默认 128） |
+| 第2排第1键（`LCTRL`） | `U_MSS_RESET` | 清掉已存进 flash 的设置并回默认 |
+| 第2排第11/12键（`;` / `'`） | `U_MSS_TP_V6_D` / `U_MSS_TP_V6_I` | 最高速度 −5 / +5（默认 97） |
+| 第3排第1键（`LSHFT`） | `U_MSS_LOG` | 把当前 4 个值打到串口日志 |
+| 第3排第11/12键（`/` / `RSHFT`） | `U_MSS_TP_NI_D` / `U_MSS_TP_NI_I` | 负惯性 −1 / +1（默认 6） |
+| 底排 `TAB` / `Space` / `Enter` / `←` | `&mkp MCLK` / `LCLK` / `RCLK` / `MCLK` | 鼠标中键 / 左键 / 右键 |
+| 底排 `↑` / `→` | `U_MSS_TP_PT_D` / `U_MSS_TP_PT_I` | 按点选阈值 −1 / +1（默认 8） |
+
+改完 **60 秒**（`CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE`）才写 flash，这段时间断电等于白调。
+想永久固定就把值写进 `config/include/mouse_tp.dtsi` 的 `&mouse_ps2 { ... }`
+（`MS_RESET` 之后生效的正是那里硬编码的值）。
+
+三个遗留问题：
+
+* 上游把「最高速度」的加档键写成了减档（两个都是 `U_MSS_TP_V6_D`），本分支已修成
+  `U_MSS_TP_V6_I` —— 生成 DT 里现在是 `&mms 0xf &mms 0xe`（15 = VALUE6_DECR，14 = INCR）。
+* `U_TOG_TP_SET` 和 `mo_ctrl_or_tp`（`&mo 0x2` / `&mo 0x4` 的 morph）在这个 keymap 里
+  **只定义、没有任何层引用**，所以层 4 目前没有入口 —— 想用就自己接一个键
+  （上游原版是挂在 Control 层上），或者在 ZMK Studio 里改。
+* `U_MSS_LOG` 走 `LOG_INF`，而日志已经关掉（见「注意事项」），所以它现在按了没反应。
+
+> 读这层**别按源码换行**：config 里这份被重排成 15/15/16，而物理排布是 12/12/12/10。
+> 换行是假象，**扁平顺序**才是真的（总数仍是 46，和原版 `boards/shields/alleindrach/
+> alleindrach.keymap` 里那份用框线对齐的逐项一致）。
+
 ### 构建
 
 需要 `west`、CMake、Ninja 和 **Zephyr SDK 0.17.0**（Zephyr 3.5 用）。
@@ -183,11 +217,12 @@ make clean        # 删掉 build/
   “Console / logging transport”。
 * `ws2812@1` 的 unit-address 警告是原仓库就有的（`reg = <0>` 与 `@1` 不一致），
   不影响功能，本次未改动。
-* 自动鼠标图层（指点杆一动就激活 `MOUSE_TP` 层）是保留的 —— 因为
-  `input_listener_ps2.c` 被完整编进固件，`config/include/mouse_tp.dtsi` 里的
-  `layer-toggle` / `layer-toggle-delay-ms` / `layer-toggle-timeout-ms` 照旧生效。
-* 固件占用（关闭日志后）：FLASH 247,364 B / 792 KB（30.5%），RAM 76,194 B /
-  256 KB（29.1%）；`settings_reset` 固件 FLASH 46,188 B。（开日志时是 37.5% / 33.6%。）
+* 自动鼠标图层（指点杆一动就激活 `MOUSE_TP` 层）是保留的，但**已改由主线 listener 实现**：
+  模块自带的 `zmk,input-listener-ps2` 被 `status = "disabled"`，等价效果来自
+  `zip_temp_layer MOUSE_TP 150`（见「滚动模式」一节）。
+* TP Set 层（层 4）的调参键位、以及它当前没有入口这件事，见「TP Set 层」一节。
+* 固件占用：FLASH 246,876 B / 792 KB（30.4%），RAM 77,298 B / 256 KB（29.5%）；
+  `settings_reset` 固件 FLASH 46,188 B。（开着 USB 日志时是 37.5% / 33.6%。）
 
 ---
 
@@ -202,7 +237,7 @@ make clean        # 删掉 build/
 | Physical layout (required by Studio) | ✅ generated from `config/info.json`, 46 keys |
 | RGB status indicators (Caps/Num, BLE, layer) | ✅ ported back into this repo |
 | Scroll mode (former `&mmm`) | ✅ rebuilt on mainline `zmk,input-listener` per-layer overrides — hold a TP-layer key and move the stick (see below) |
-| USB logging | ✅ kept (adds a second serial port — see caveats) |
+| USB logging | ❌ off (USB exposes a single serial port — see caveats) |
 
 ### Why not DYA Studio
 
@@ -328,6 +363,45 @@ before the layer activated) has no counterpart in `zip_temp_layer`; the layer no
 on with the first movement event. Add `require-prior-idle-ms = <150>;` if you want to
 stop the layer popping up right after typing.
 
+### The TP Set layer (runtime TrackPoint tuning)
+
+`MouseSettings_layer` (layer 4) tunes the TrackPoint at runtime through the driver
+module's `&mms` (`zmk,behavior-mouse-setting`). Only 10 keys do anything; the rest
+are `&none` — not `&trans` — so while the layer is held those keys are dead and do
+**not** fall through to the base layer:
+
+| Position (key it sits on in BASE) | Binding | Effect |
+| --- | --- | --- |
+| Row 1, keys 11/12 (`P` / `BSPC`) | `U_MSS_TP_S_D` / `U_MSS_TP_S_I` | sensitivity −10 / +10 (default 128) |
+| Row 2, key 1 (`LCTRL`) | `U_MSS_RESET` | wipe the stored settings and restore defaults |
+| Row 2, keys 11/12 (`;` / `'`) | `U_MSS_TP_V6_D` / `U_MSS_TP_V6_I` | upper plateau speed −5 / +5 (default 97) |
+| Row 3, key 1 (`LSHFT`) | `U_MSS_LOG` | dump the four current values to the serial log |
+| Row 3, keys 11/12 (`/` / `RSHFT`) | `U_MSS_TP_NI_D` / `U_MSS_TP_NI_I` | negative inertia −1 / +1 (default 6) |
+| Bottom: `TAB` / `Space` / `Enter` / `←` | `&mkp MCLK` / `LCLK` / `RCLK` / `MCLK` | mouse middle / left / right button |
+| Bottom: `↑` / `→` | `U_MSS_TP_PT_D` / `U_MSS_TP_PT_I` | press-to-select threshold −1 / +1 (default 8) |
+
+Values are written to flash only after **60 s** (`CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE`),
+so cutting power inside that window loses the change. To pin values down instead,
+put them in `&mouse_ps2 { ... }` in `config/include/mouse_tp.dtsi` — that is what
+takes effect after `MS_RESET`.
+
+Three leftovers:
+
+* Upstream wrote the "upper plateau speed" increase key as a decrease (both were
+  `U_MSS_TP_V6_D`). This branch fixes it to `U_MSS_TP_V6_I`, so the generated DT now
+  reads `&mms 0xf &mms 0xe` (15 = VALUE6_DECR, 14 = INCR).
+* `U_TOG_TP_SET` and `mo_ctrl_or_tp` (the `&mo 0x2` / `&mo 0x4` morph) are **defined
+  but referenced by no layer** in this keymap, so layer 4 currently has no entry
+  point — bind a key to `&mo MOUSE_TP_SET` yourself (upstream had it on the Control
+  layer) or change it from ZMK Studio.
+* `U_MSS_LOG` goes through `LOG_INF` and USB logging is off (see caveats), so it does
+  nothing at the moment.
+
+> Do not read this layer by its source line breaks: the copy in `config/` was
+> reflowed into 15/15/16 while the physical rows are 12/12/12/10. The line breaks are
+> cosmetic; the **flat order** is what matters (still 46 entries, identical to the
+> frame-drawn version in `boards/shields/alleindrach/alleindrach.keymap`).
+
 ### Building
 
 You need `west`, CMake, Ninja and **Zephyr SDK 0.17.0** (that is what Zephyr 3.5
@@ -377,10 +451,12 @@ The layout preview comes from
   `boards/shields/alleindrach/boards/nice_nano_v2.overlay`.
 * The `ws2812@1` unit-address warning is pre-existing (`reg = <0>` vs `@1`); it is
   harmless and was left alone.
-* Automatic mouse layer (TrackPoint movement activates the `MOUSE_TP` layer) is
-  preserved: `input_listener_ps2.c` is compiled into the firmware in full, so the
-  `layer-toggle` / `layer-toggle-delay-ms` / `layer-toggle-timeout-ms` settings in
-  `config/include/mouse_tp.dtsi` still apply.
-* Firmware size (USB logging off): FLASH 247,364 B / 792 KB (30.5%), RAM
-  76,194 B / 256 KB (29.1%); the `settings_reset` build is FLASH 46,188 B.
-  (With logging on it was 37.5% / 33.6%.)
+* Automatic mouse layer (TrackPoint movement activates the `MOUSE_TP` layer) is kept,
+  but it is now driven by **mainline's listener**: the module's own
+  `zmk,input-listener-ps2` is `status = "disabled"` and `zip_temp_layer MOUSE_TP 150`
+  does the equivalent job (see the scroll section).
+* The TP Set layer (layer 4) — which keys tune what, and the fact that nothing enters
+  it right now — is documented in "The TP Set layer" above.
+* Firmware size: FLASH 246,876 B / 792 KB (30.4%), RAM 77,298 B / 256 KB (29.5%);
+  the `settings_reset` build is FLASH 46,188 B. (With USB logging on it was
+  37.5% / 33.6%.)
