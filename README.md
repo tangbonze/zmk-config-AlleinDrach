@@ -21,6 +21,7 @@ lives on the `studio` branch.
 | RGB 状态指示灯（Caps/Num、BLE、图层） | ✅ 从 fork 移植回本仓库 |
 | 滚动模式（原 `&mmm`） | ✅ 用主线 `zmk,input-listener` 的按层重映射实现，按住 TP 层的键再推指点杆即可滚动；横向已关闭、垂直方向已对调、速度 1/16（见下） |
 | Snipe 精调层 | ✅ 层 6，入口是 TP 层 `Y` 键的 `&mo SNIPE`，按住把指点杆降到 1/4 速（见下） |
+| 指点杆手感 | ✅ 按 IBM《TrackPoint System Version 4.0》的出厂值钉死：灵敏度 128 / 上平台速度 97 / 负惯性 6（见「指点杆手感：官方出厂值」） |
 | USB 日志 | ❌ 已关闭（USB 只暴露一个串口，见「注意事项」） |
 | TP Set 层（指点杆运行时调参） | ✅ 保留，入口是 TP 层第 1 排第 1 键的 `&mo MOUSE_TP_SET`；修正了上游「最高速度加档」被写成减档的问题（见「TP Set 层」） |
 | 自定义 `macros` / hold-tap | ❌ 已整体移除 —— 在线 Keymap Editor 不认 `macros`，引用它们的那 15 个 hold-tap 也已零引用（见「与在线 Keymap Editor 共存」） |
@@ -189,6 +190,46 @@ snipe {
   snipe 影响（snipe 的 scaler 只作用于 `INPUT_REL_X` / `INPUT_REL_Y`，那时已经变成
   `INPUT_REL_WHEEL` 了）。
 
+### 指点杆手感：官方出厂值
+
+手感是**指点杆自己的固件**决定的，不是 ZMK 决定的。三个关键参数住在指点杆的 NVRAM 里，
+本分支现在按官方值把它们钉死在 `config/include/mouse_tp.dtsi` 的 `&mouse_ps2 { ... }`：
+
+| 参数 | PS/2 命令 | 官方值 | 含义 |
+| --- | --- | --- | --- |
+| `tp-sensitivity` | `E2 81 4A XX` | `x"80"` = **128** | 输入力先除以 128 再乘回来，所以 128 正好是 1.00 倍，不加额外增益 |
+| `tp-val6-upper-speed` | `E2 81 60 XX` | `x"61"` = **97** | 转移函数上平台之前的斜率，决定最高速度。规范原话是 97「适合 1024×768 显示 + 鼠标驱动 2× 加速」 |
+| `tp-neg-inertia` | `E2 81 4D XX` | `x"06"` = **6** | 负惯性（刹车）算法强度，越大越「停得住」 |
+
+依据是 IBM 的 **TrackPoint System Version 4.0 Engineering Specification**
+（[完整版 PDF](https://web.mit.edu/bbaren/Public/ykt3eext.pdf) ·
+[节选 10 页](https://blogs.epfl.ch/icenet/documents/Ykt3Eext.pdf)）
+第 2.4.19.3 / 2.4.19.4 节。同一组数也出现在 Linux 内核
+`drivers/input/mouse/trackpoint.c` 的 `TP_DEF_SENS` / `TP_DEF_SPEED` / `TP_DEF_INERTIA`，
+以及驱动模块的 `*_DEFAULT` 常量里 —— 三处独立一致，可以互证。
+
+**为什么必须显式写一遍，而不是「反正出厂值就在」**：规范对这三个值都带了同一句话 ——
+*"is not affected by a reset (x"FF") or set default (x"F6") command"*。它们**不受复位
+影响**，这是双刃的：一旦被改过（自己调过，或者模块被卖家刷过别的值），指点杆自己的
+开机复位也救不回来，只能靠显式写一次。写进 DT 之后每次开机都会重新烧一遍官方值，
+手感不会随时间漂掉。
+
+**代价（要知道）**：某个值一旦在 DT 里写死，驱动就不再从 flash 恢复它（开机日志会打
+`Not restoring runtime settings ...`），于是用 TP Set 层调出来的值**只在本次开机内有效**。
+想持久调某个参数，把 DT 里对应那行删掉即可。
+
+另外两项也保持官方状态：
+
+* **按点选（press-to-select）默认关** —— 规范里 `ptson` 位的默认值是 0，所以
+  `tp-press-to-select` 保持注释。这个功能也不是所有模块都支持。
+* **采样率保持 100** —— 规范说 100 reports/s 是复位默认，而驱动只在「不等于 100」时才发
+  这条命令，所以不写就是官方值。
+
+> ⚠️ 两点提醒：① 97 是给 1024×768 定的，在 2K/4K 屏上「官方手感」会偏慢 —— 觉得慢就抬
+> `tp-val6-upper-speed`（TP Set 层每档 ±5）；② 只有真正实现了 TP 命令集的模块才理睬这
+> 三条命令，部分国产/魔改模块会直接忽略。想确认模块身份，把 USB 日志打开，看开机那行
+> `Connected device is a ...`。
+
 ### TP Set 层（指点杆运行时调参）
 
 `MouseSettings_layer`（层 4）用驱动模块的 `&mms`（`zmk,behavior-mouse-setting`）在运行时改
@@ -206,8 +247,13 @@ snipe {
 | 底排 `↑` / `→` | `U_MSS_TP_PT_D` / `U_MSS_TP_PT_I` | 按点选阈值 −1 / +1（默认 8） |
 
 改完 **60 秒**（`CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE`）才写 flash，这段时间断电等于白调。
-想永久固定就把值写进 `config/include/mouse_tp.dtsi` 的 `&mouse_ps2 { ... }`
-（`MS_RESET` 之后生效的正是那里硬编码的值）。
+想永久固定就把值写进 `config/include/mouse_tp.dtsi` 的 `&mouse_ps2 { ... }`（本分支已经
+写好了官方值，见上一节）。
+
+> 顺带纠正一个常见误解：按 `U_MSS_RESET` **不是**「回读到 DT 里写的值」，它是清掉 flash 里
+> 的运行时值、再把驱动源码里写死的 `*_DEFAULT` 常量（128 / 6 / 97 / 8）烧回指点杆。
+> 这组数字和本分支钉的官方值恰好相同，但来源不同 —— 你在 DT 里改成别的值之后，
+> `MS_RESET` 仍然只回默认常量。
 
 入口：TP 层（层 3）第 1 排第 1 键是 `&mo MOUSE_TP_SET`，生成 DT 里是 `&mo 0x4`。
 `U_TOG_TP_SET` 和 `mo_ctrl_or_tp` 两个 define / behavior 仍然只定义、无人引用，是死代码。
@@ -329,6 +375,7 @@ make clean        # 删掉 build/
 | RGB status indicators (Caps/Num, BLE, layer) | ✅ ported back into this repo |
 | Scroll mode (former `&mmm`) | ✅ rebuilt on mainline `zmk,input-listener` per-layer overrides — hold a TP-layer key and move the stick; horizontal off, vertical swapped, 1/16 speed (see below) |
 | Snipe layer | ✅ layer 6, entered with `&mo SNIPE` on the TP layer's `Y` key; hold to drop the pointer to 1/4 speed (see below) |
+| TrackPoint feel | ✅ pinned to the IBM "TrackPoint System Version 4.0" factory values: sensitivity 128 / upper plateau speed 97 / negative inertia 6 (see "TrackPoint feel: the official (factory) values") |
 | USB logging | ❌ off (USB exposes a single serial port — see caveats) |
 | TP Set layer (runtime TrackPoint tuning) | ✅ kept; entered with `&mo MOUSE_TP_SET` on the first key of the TP layer's top row. Fixes upstream's "upper plateau speed" increase key (see "The TP Set layer") |
 | Custom `macros` / hold-taps | ❌ removed — the online Keymap Editor does not understand `macros`, and the 15 hold-taps that referenced them had zero references left (see "Living with the online Keymap Editor") |
@@ -513,6 +560,51 @@ snipe {
   keys leaves the scroll speed alone (the snipe scaler only touches `INPUT_REL_X` /
   `INPUT_REL_Y`, which by then have already become `INPUT_REL_WHEEL`).
 
+### TrackPoint feel: the official (factory) values
+
+The feel comes from **the TrackPoint's own firmware**, not from ZMK. The three parameters
+that matter live in the TrackPoint's NVRAM, and this branch now pins them to the official
+values in `&mouse_ps2 { ... }` inside `config/include/mouse_tp.dtsi`:
+
+| Parameter | PS/2 command | Official value | Meaning |
+| --- | --- | --- | --- |
+| `tp-sensitivity` | `E2 81 4A XX` | `x"80"` = **128** | Input force is divided by 128 before being multiplied back in, so 128 is exactly 1.00x — no extra gain. |
+| `tp-val6-upper-speed` | `E2 81 60 XX` | `x"61"` = **97** | Slope of the transfer-function segment before the upper plateau; sets the top speed. The spec calls 97 "appropriate for a 1024 x 768 pixel display with a 2 x acceleration in the mouse driver". |
+| `tp-neg-inertia` | `E2 81 4D XX` | `x"06"` = **6** | Strength of the negative-inertia (braking) algorithm; higher brakes harder. |
+
+The source is IBM's **TrackPoint System Version 4.0 Engineering Specification**
+([full PDF](https://web.mit.edu/bbaren/Public/ykt3eext.pdf) ·
+[10-page excerpt](https://blogs.epfl.ch/icenet/documents/Ykt3Eext.pdf)),
+sections 2.4.19.3 / 2.4.19.4. The same numbers appear as `TP_DEF_SENS`
+/ `TP_DEF_SPEED` / `TP_DEF_INERTIA` in Linux's `drivers/input/mouse/trackpoint.c` and as the
+driver module's `*_DEFAULT` constants — three independent places that agree.
+
+**Why they have to be written explicitly rather than trusting "the factory values are already
+in there"**: the spec says of all three that the value *"is not affected by a reset (x"FF") or
+set default (x"F6") command"*. That cuts both ways: the values survive a reset, so once they
+have been changed (by your own tuning, or by a vendor that re-flashed the module) the
+TrackPoint's own power-on reset cannot bring them back. Writing them from the device tree
+re-programmes the official values on every boot, so the feel cannot drift.
+
+**The trade-off**: with a value present in the DT the driver no longer restores that setting
+from flash (boot logs `Not restoring runtime settings ...`), so anything you dial in from the
+TP Set layer lasts only until the next reboot. To tune a parameter for good, delete that one
+line from the DT.
+
+Two more things kept at their official state:
+
+* **Press-to-select stays off** — the spec's `ptson` bit defaults to 0, so `tp-press-to-select`
+  remains commented out. Not every module implements the feature anyway.
+* **Sampling rate stays 100** — the spec calls 100 reports/second the reset default, and the
+  driver only sends that command when the value differs from 100, so leaving it commented
+  *is* the official setting.
+
+> ⚠️ Two caveats: (1) 97 was specified for a 1024x768 panel, so on a 2K/4K display the official
+> feel reads as slow — raise `tp-val6-upper-speed` in +5 steps (the TP Set layer has the keys).
+> (2) Only modules that actually implement the TrackPoint command set honour these three
+> writes; some third-party / re-flashed ones ignore them. To identify your module, turn USB
+> logging back on and read the `Connected device is a ...` line at boot.
+
 ### The TP Set layer (runtime TrackPoint tuning)
 
 `MouseSettings_layer` (layer 4) tunes the TrackPoint at runtime through the driver
@@ -532,8 +624,14 @@ are `&none` — not `&trans` — so while the layer is held those keys are dead 
 
 Values are written to flash only after **60 s** (`CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE`),
 so cutting power inside that window loses the change. To pin values down instead,
-put them in `&mouse_ps2 { ... }` in `config/include/mouse_tp.dtsi` — that is what
-takes effect after `MS_RESET`.
+put them in `&mouse_ps2 { ... }` in `config/include/mouse_tp.dtsi` — this branch already
+does that with the official values, see the previous section.
+
+> One widespread misconception to clear up: `U_MSS_RESET` does **not** re-read the values
+> from the DT. It deletes the runtime settings from flash and writes the driver's
+> hard-coded `*_DEFAULT` constants (128 / 6 / 97 / 8) back to the TrackPoint. Those happen
+> to be the same numbers this branch pins, but they come from a different place — change the
+> DT to something else and `MS_RESET` still restores the default constants.
 
 Entry point: the first key of the TP layer's top row is `&mo MOUSE_TP_SET` (`&mo 0x4` in
 the generated DT). `U_TOG_TP_SET` and `mo_ctrl_or_tp` are still defined but referenced by

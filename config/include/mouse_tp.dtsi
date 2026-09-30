@@ -190,28 +190,74 @@
 
    /*
     * Mouse Driver Settings
+    *
+    * --------------------------------------------------------------------
+    *  Official ("factory") TrackPoint feel -- 官方出厂手感
+    * --------------------------------------------------------------------
+    *
+    * The three values pinned below are the power-on defaults from the IBM
+    * "TrackPoint System Version 4.0 Engineering Specification" (YKT3Eext,
+    * IBM Corp. 1999), sections 2.4.19.3 / 2.4.19.4 -- i.e. what a genuine
+    * ThinkPad TrackPoint is set to when it leaves the factory:
+    *
+    *   snstvty   E2 81 4A XX   x"80" = 128   input force is divided by 128,
+    *                                        so 128 == scale factor 1.00
+    *                                        (nominal, no extra gain)
+    *   value6    E2 81 60 XX   x"61" =  97   slope of the transfer function
+    *                                        segment before the upper plateau.
+    *                                        The spec calls 97 "appropriate for
+    *                                        a 1024 x 768 pixel display with a
+    *                                        2 x acceleration in the mouse
+    *                                        driver"
+    *   inertia   E2 81 4D XX   x"06" =   6   scaling of the negative-inertia
+    *                                        (braking) algorithm
+    *
+    * Why write them down instead of leaving the TrackPoint alone: the spec
+    * states for all three that the value "is not affected by a reset (x"FF")
+    * or set default (x"F6") command". They live in the TrackPoint's own NVRAM,
+    * so a module whose settings have drifted -- or one a vendor re-flashed with
+    * different values -- keeps the off-spec feel forever; the driver's
+    * power-on reset cannot bring them back. Writing them from the device tree
+    * re-programmes the TrackPoint to the official feel on every boot.
+    *
+    * Trade-off: with a value present here, the driver refuses to restore that
+    * setting from flash (it logs "Not restoring runtime settings ..."), so
+    * tweaks made with the TP Set layer (`&mms`) only last until the next boot.
+    * Delete the line of whichever setting you want to tune persistently.
+    *
+    * Note: these are the values for the TrackPoint's OWN transfer function. The
+    * pointer-side processors in `trackpoint_listener` above (temp layer, snipe
+    * scaler) deliberately add no scaling on the base layer, so nothing in ZMK
+    * distorts the official curve.
     */
 
     &mouse_ps2 {
 
-      // How sensitive the TP is (Default: 128)
-      // tp-sensitivity = <128>;
+      // Official default: x"80" (128) -> scale factor 1.00, no gain applied on
+      // top of the raw force reading.
+      tp-sensitivity = <128>;
+
+      // Official default: x"61" (97). Raise this for a faster top end on a
+      // HiDPI screen -- the documented 97 assumes 1024x768 with 2x driver
+      // acceleration.
+      tp-val6-upper-speed = <97>;
+
+      // Official default: x"06" (6). Larger values brake harder: the cursor
+      // stops sooner (and snaps back more) when you let go.
+      tp-neg-inertia = <6>;
 
 
-      // The maximum mouse movement speed the TP will accelarate to
-      // (Default: 97)
-      // tp-val6-upper-speed = <97>;
-
-
-      // Negative Inertia (Default: 6)
-      // Makes the TP feel more responsive and "overshoot" less.
-      // tp-neg-inertia = <6>;
-
-
-      // Enable clicking by tapping on the TP.
-      // Not all TPs support this.
+      // Clicking by pressing harder on the stick.
+      // Official state is OFF: the spec's `ptson` bit (E2 47 2C 01) defaults to
+      // 0, and the driver only enables the feature when you ask for it here.
+      // Not every module implements it (badjeff's T430 does, his newer T460s
+      // does not).
+      //
+      // The official `thr` (Z force required to trigger a press/release,
+      // E2 81 5C XX) is x"08" = 8 -- this comment used to claim 10. It only
+      // has any effect once press-to-select itself is enabled.
       // tp-press-to-select;
-      // tp-press-to-select-threshold = <10>;
+      // tp-press-to-select-threshold = <8>;
 
 
       // Adjust axis settings on the TP
@@ -229,7 +275,10 @@
       // Set sampling rate
       //
       // The frequency at which the mouse samples and sends data (in hz).
-      // The default rate is 100. You can try lowering it if you experience
+      // 100 is also the official reset default ("a rate of 100 reports per
+      // second is the reset default" in the spec), and the driver only sends
+      // the command when this differs from 100 -- so leaving it commented is
+      // the official setting. You can try lowering it if you experience
       // connection errors.
       //
       // Higher values than 100 are no improvement in my experience, but will
